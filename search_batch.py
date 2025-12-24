@@ -26,6 +26,7 @@ def lns_batch_search(instances, max_iterations, timelimit, operator_pairs, confi
         mean_cost_before_iteration = np.mean(costs)
 
         solution_copies = [instance.get_solution_copy() for instance in instances]
+        schedule_copies = [[[x[:] for x in tour_sched] for tour_sched in instance.schedule] for instance in instances]
 
         # Select an LNS operator pair (destroy + repair operator)
         if config.lns_adaptive_search:
@@ -54,6 +55,7 @@ def lns_batch_search(instances, max_iterations, timelimit, operator_pairs, confi
             # Only "accept" improving solutions
             if costs[i] < cost:
                 instances[i].solution = solution_copies[i]
+                instances[i].schedule = schedule_copies[i]
             else:
                 costs[i] = cost
 

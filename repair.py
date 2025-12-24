@@ -8,27 +8,35 @@ import torch.nn.functional as F
 
 def _actor_model_forward(actor, instances, static_input, dynamic_input, config, vehicle_capacity):
     batch_size = static_input.shape[0]
+    N = static_input.shape[1]
     tour_idx, tour_logp = [], []
 
     instance_repaired = np.zeros(batch_size)
 
     origin_idx = np.zeros((batch_size), dtype=int)
+    last_dim = torch.zeros((batch_size, N, 1), dtype=int, device=static_input.device)
 
     iter = 0
     while not instance_repaired.all():
         iter += 1
-
         # if origin_idx == 0 select the next tour end that serves as the origin at random
         for i, instance in enumerate(instances):
             if origin_idx[i] == 0 and not instance_repaired[i]:
                 origin_idx[i] = np.random.choice(instance.open_nn_input_idx, 1).item()
-
+            last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i])
         mask = vrp_problem.get_mask(origin_idx, dynamic_input, instances, config, vehicle_capacity).to(
             config.device).float()
 
+        #last_dim = torch.from_numpy(last_dim).to(device=static_input.device)
+        #last_dim.to(device=static_input.device)
+
         # Rescale customer demand based on vehicle capacity
-        dynamic_input_float = dynamic_input.float()
+        dynamic_input_last_dim = torch.cat((dynamic_input, last_dim), dim=-1)
+        dynamic_input_float = dynamic_input_last_dim.float()
         dynamic_input_float[:, :, 0] = dynamic_input_float[:, :, 0] / float(vehicle_capacity)
+
+        # append last dimension of dynamic_input_float which depends on selected origin_idx
+        last_dims = np.zeros((batch_size, N, 1), dtype=int)
 
         origin_static_input = static_input[torch.arange(batch_size), origin_idx]
         origin_dynamic_input_float = dynamic_input_float[torch.arange(batch_size), origin_idx]
@@ -99,7 +107,7 @@ def repair(instances, actor, config, critic=None):
     batch_size = len(instances)
 
     # Create batch input
-    static_input = np.zeros((batch_size, nb_input_points, 2))
+    static_input = np.zeros((batch_size, nb_input_points, 4))
     dynamic_input = np.zeros((batch_size, nb_input_points, 2), dtype='int')
     for i, instance in enumerate(instances):
         static_nn_input, dynamic_nn_input = instance.get_network_input(nb_input_points)

@@ -67,8 +67,11 @@ def evaluate_batch_search(config, model_path):
         costs.extend(r[1])
         iterations.append(r[2])
 
-    path = os.path.join(config.output_path, "search", 'results.txt')
+    path = os.path.join(config.output_path, "search", "nlns_batch_search_results.txt")
     np.savetxt(path, np.column_stack((instance_id, costs)), delimiter=',', fmt=['%i', '%f'])
+    print(f"Saved results of batch search in {path}")
+    #path = os.path.join(config.output_path, "search", 'results.txt')
+    #np.savetxt(path, np.column_stack((instance_id, costs)), delimiter=',', fmt=['%i', '%f'])
     logging.info(
         f"Test set costs: {np.mean(costs):.3f} Total Runtime (s): {runtime:.1f} Iterations: {np.mean(iterations):.1f}")
 
@@ -77,7 +80,7 @@ def evaluate_single_search(config, model_path, instance_path):
     assert model_path is not None, 'No model path given'
     assert instance_path is not None, 'No instance path given'
 
-    instance_names, costs, durations = [], [], []
+    instance_names, instance_ids, costs, durations, distances, sums_late_mins = [], [], [], [], [], []
     logging.info("### Single instance search ###")
 
     if instance_path.endswith(".vrp") or instance_path.endswith(".sd"):
@@ -95,16 +98,33 @@ def evaluate_single_search(config, model_path, instance_path):
     for i, instance_path in enumerate(instance_files_path):
         if instance_path.endswith(".pkl") or instance_path.endswith(".vrp") or instance_path.endswith(".sd"):
             for _ in range(config.nb_runs):
-                cost, duration = search_single.lns_single_search_mp(instance_path, config.lns_timelimit, config,
-                                                                    model_path, i)
+                cost, duration, distance, sum_late_mins = search_single.lns_single_search_mp(instance_path, config.lns_timelimit, config,
+                                                                    model_path, i, plot_sol = config.plot_sol)
                 instance_names.append(instance_path)
+                instance_ids.append(i)
                 costs.append(cost)
+                distances.append(distance)
                 durations.append(duration)
+                sums_late_mins.append(sum_late_mins)
 
-    output_path = os.path.join(config.output_path, "search", 'results.txt')
-    results = np.array(list(zip(instance_names, costs, durations)))
-    np.savetxt(output_path, results, delimiter=',', fmt=['%s', '%s', '%s'], header="name, cost, runtime")
+    output_path_with_times = os.path.join(config.output_path, "search", 'nlns_batch_search_results_with_times.txt')
+    output_path_distances = os.path.join(config.output_path, "search", 'nlns_batch_search_distances.txt')
+    output_path_delay = os.path.join(config.output_path, "search", 'nlns_batch_search_delay.txt')
+    output_path = os.path.join(config.output_path, "search", 'nlns_batch_search_results.txt')
+    results_with_times = np.array(list(zip(instance_names, costs, durations)))
+    results = np.array(list(zip(instance_ids, costs)))
+    distances_results = np.array(list(zip(instance_ids, distances)))
+    delay_results = np.array(list(zip(instance_ids, sums_late_mins)))
+    np.savetxt(output_path_with_times, results_with_times, delimiter=',', fmt=['%s', '%s', '%s'], header="name, cost, runtime")
+    np.savetxt(output_path_distances, distances_results, delimiter=',')
+    np.savetxt(output_path_delay, delay_results, delimiter=',')
+    np.savetxt(output_path, results, delimiter=',',)
+    print(f"Saved results of single search in {output_path}")
+    print(f"Saved distances of single search in {output_path_distances}")
+    print(f"Saved delay of single search in {output_path_delay}")
+    print(f"config.output_path = {config.output_path}")
 
     logging.info(
         f"NLNS single search evaluation results: Total Nb. Runs: {len(costs)}, "
-        f"Mean Costs: {np.mean(costs):.3f} Mean Runtime (s): {np.mean(durations):.1f}")
+        f"Mean Costs: {np.mean(costs):.3f} Mean Runtime (s): {np.mean(durations):.1f}"
+        f"Mean Distance: {np.mean(distances):.3f} Mean Delay: {np.mean(sums_late_mins):.1f}")

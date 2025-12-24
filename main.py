@@ -24,21 +24,30 @@ import train
 import search
 from actor import VrpActorModel
 from critic import VrpCriticModel
+import torch
+import re
 
 VERSION = "0.3.0"
 
 if __name__ == '__main__':
-    run_id = np.random.randint(10000, 99999)
     config = config.get_config()
+    if config.output_path == "":
+        run_id = np.random.randint(10000, 99999)
+    else:
+        match = re.search(r"run_\d{1,2}\.\d{1,2}\.\d{4}_(\d+)", config.output_path)
+        if match:
+            run_id = int(match.group(1))
+        else:
+            run_id = np.random.randint(10000, 99999)
 
     # Creating output directories
     if config.output_path == "":
         config.output_path = os.getcwd()
-    now = datetime.datetime.now()
-    config.output_path = os.path.join(config.output_path, "runs", f"run_{now.day}.{now.month}.{now.year}_{run_id}")
-    os.makedirs(os.path.join(config.output_path, "solutions"))
-    os.makedirs(os.path.join(config.output_path, "models"))
-    os.makedirs(os.path.join(config.output_path, "search"))
+        now = datetime.datetime.now()
+        config.output_path = os.path.join(config.output_path, "runs", f"run_{now.day}.{now.month}.{now.year}_{run_id}")
+        os.makedirs(os.path.join(config.output_path, "solutions"))
+        os.makedirs(os.path.join(config.output_path, "models"))
+        os.makedirs(os.path.join(config.output_path, "search"))
 
     # Create logger and log run parameters
     logging.basicConfig(
@@ -55,6 +64,14 @@ if __name__ == '__main__':
 
     if config.mode == "train":
         actor = VrpActorModel(config.device, hidden_size=config.pointer_hidden_size).to(config.device)
+
+        if config.pretrained_model_path is not None:
+            assert os.path.exists(config.pretrained_model_path)
+            model_data = torch.load(config.pretrained_model_path, config.device)
+            actor.load_state_dict(model_data['parameters'])
+            actor.train()
+            logging.info(f"Loading pretrained model {config.pretrained_model_path}")
+
         critic = VrpCriticModel(config.critic_hidden_size).to(config.device)
 
         model_path = train.train_nlns(actor, critic, run_id, config)

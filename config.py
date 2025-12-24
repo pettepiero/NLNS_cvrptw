@@ -24,6 +24,7 @@ def get_config():
     parser.add_argument('--lns_destruction', default="P", type=str)
     parser.add_argument('--instance_blueprint', default="ALTR_20", type=str)
     parser.add_argument('--valid_size', default=500, type=int)
+    parser.add_argument('--pretrained_model_path', default=None, type=str)
 
     # Search
     parser.add_argument('--model_path', default=None, type=str)
@@ -39,6 +40,14 @@ def get_config():
     parser.add_argument('--lns_Z_param', default=0.8, type=float)
     parser.add_argument('--lns_adaptive_search', default=False, action='store_true')
     parser.add_argument('--nb_runs', default=1, type=int)
+
+    parser.add_argument('--log_f', type=int, default=10, help="How many batches to log metrics. Default 250 batches.")
+    parser.add_argument('--wandb',  action='store_false', default=True, help="Disables wandb logging when called")
+    parser.add_argument('--train_dataset', default=None, type=str)
+    parser.add_argument('--val_dataset', default=None, type=str)
+
+    #plotting
+    parser.add_argument('--plot_sol', type=bool, default=False)
 
     config = parser.parse_args()
 

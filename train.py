@@ -9,20 +9,60 @@ import datetime
 from search_batch import lns_batch_search
 import repair
 import main
-from vrp.data_utils import create_dataset
+from vrp.data_utils import create_dataset, read_dataset
 from search import LnsOperatorPair
+from tqdm import tqdm, trange
+import wandb
 
+def get_datasets(config):
+    # first check if the datasets exist 
+    if config.val_dataset is not None:
+        assert os.path.exists(config.val_dataset)
+    if config.train_dataset is not None:
+        assert os.path.exists(config.train_dataset)
+
+    # then either read them or create them
+    batch_size = config.batch_size
+    if config.train_dataset is None:
+        logging.info("Generating training data...")
+        # Create training and validation set. The initial solutions are created greedily
+        training_set = create_dataset(
+            size            = batch_size * config.nb_batches_training_set, 
+            config          = config,
+            create_solution = True, 
+            use_cost_memory = False)
+    else: 
+        logging.info(f"Reading training data from {config.train_dataset}...")
+        training_set = read_dataset(
+            path            = config.train_dataset, 
+            size            = batch_size*config.nb_batches_training_set, 
+            create_solution = True, 
+            )
+
+    if config.train_dataset is None:
+        assert config.valid_size % config.lns_batch_size == 0, 'Validation size is not a multiple of lns_batch_size'
+        logging.info("Generating validation data...")
+        validation_instances = create_dataset(
+            size            = config.valid_size, 
+            config          = config, 
+            seed            = config.validation_seed,
+            create_solution = True)
+    else:
+        logging.info(f"Reading validation data from {config.val_dataset}")
+        assert os.path.isdir(config.val_dataset)
+        validation_instances = read_dataset(
+            path            = config.val_dataset, 
+            size            = config.valid_size, 
+            create_solution = True,
+            )
+
+    assert len(validation_instances) % config.lns_batch_size == 0
+
+    return training_set, validation_instances
 
 def train_nlns(actor, critic, run_id, config):
-    batch_size = config.batch_size
 
-    logging.info("Generating training data...")
-    # Create training and validation set. The initial solutions are created greedily
-    training_set = create_dataset(size=batch_size * config.nb_batches_training_set, config=config,
-                                  create_solution=True, use_cost_memory=False)
-    logging.info("Generating validation data...")
-    validation_instances = create_dataset(size=config.valid_size, config=config, seed=config.validation_seed,
-                                          create_solution=True)
+    training_set, validation_instances = get_datasets(config)
 
     actor_optim = optim.Adam(actor.parameters(), lr=config.actor_lr)
     actor.train()
@@ -32,9 +72,24 @@ def train_nlns(actor, critic, run_id, config):
     losses_actor, rewards, diversity_values, losses_critic = [], [], [], []
     incumbent_costs = np.inf
     start_time = datetime.datetime.now()
+    log_f = config.log_f
+
+    if config.wandb:
+        # wandb logging
+        wandb.init(
+            project="vrptw-nlns",
+            id=str(run_id),
+            tags=["training"],
+            config=config,
+        )
+        wandb.define_metric('batch_idx')
+        wandb.define_metric('train/*', step_metric='batch_idx')
+
+        wandb.watch(actor, log='all', log_freq=log_f)
 
     logging.info("Starting training...")
-    for batch_idx in range(1, config.nb_train_batches + 1):
+    batch_size = config.batch_size
+    for batch_idx in trange(1, config.nb_train_batches + 1):
         # Get a batch of training instances from the training set. Training instances are generated in advance, because
         # generating them is expensive.
         training_set_batch_idx = batch_idx % config.nb_batches_training_set
@@ -73,6 +128,26 @@ def train_nlns(actor, critic, run_id, config):
         # Replace the solution of the training set instances with the new created solutions
         for i in range(batch_size):
             training_set[training_set_batch_idx * batch_size + i] = tr_instances[i]
+
+        if batch_idx % log_f == 0 and batch_idx > 0:
+            mean_loss = np.mean(losses_actor[-log_f:])  #avg actor loss over the last log_f batches
+            mean_critic_loss = np.mean(losses_critic[-log_f:]) #avg critic loss over the last log_f batches
+            mean_reward = np.mean(rewards[-log_f:]) #avg reward of last log_f batches
+            # cost of this batch (multiple of log_f)
+            train_cost_batch = np.mean(costs_repaired) # mean repair cost OF THE CURRENT BATCH
+            train_cost_batch_destroyed = np.mean(costs_destroyed) 
+
+            if config.wandb:
+                wandb.log({
+                    'batch_idx': int(batch_idx), 
+                    'train/reward': float(mean_reward), 
+                    'train/actor_loss': float(mean_loss), 
+                    'train/critic_loss': float(mean_critic_loss),
+                    'train/train_cost_batch': float(train_cost_batch),
+                    'train/train_cost_batch_destroyed': float(train_cost_batch_destroyed),
+                    'train/min_costs_destroyed_batch': float(min(costs_destroyed)),
+                    'train/max_costs_destroyed_batch': float(max(costs_destroyed)),
+                })
 
         # Log performance every 250 batches
         if batch_idx % 250 == 0 and batch_idx > 0:
@@ -117,6 +192,8 @@ def train_nlns(actor, critic, run_id, config):
             runtime = (datetime.datetime.now() - start_time)
             logging.info(
                 f"Validation (Batch {batch_idx}) Costs: {mean_costs:.3f} ({incumbent_costs:.3f}) Runtime: {runtime}")
+    if config.wandb:
+        wandb.finish()
     return incumbent_model_path
 
 

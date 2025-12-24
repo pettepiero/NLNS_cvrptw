@@ -1,0 +1,9 @@
+
+cvrp_instances/
+data/
+figures/
+*.png
+logs/
+TW_*
+wandb
+
