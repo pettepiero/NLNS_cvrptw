@@ -100,23 +100,38 @@ def read_instances(dir_path: Path) -> list:
 
 def eval_single(args):
     data = read(args.instance_path)
-    result = solve(data, stop=MaxRuntime(args.max_time), display=False)
-    results = [[0, result.best.distance_cost()]]
-    print(f"DEBUG: results: {results}")
-    
-    output_filename = os.path.join(args.output_dir, "search", "pyvrp_eval_batch.txt" ) 
+    parent_dir = Path(args.instance_path).parent.absolute()
+    instance = read_instances(parent_dir)[0]
+    result, m = run_pyvrp_on_instance(
+        inst        = instance,
+        only_cost   = False,
+        display     = True
+        )
+    cost = result.best.distance_cost()
+
+    output_filename = os.path.join(args.output_dir, "search", "pyvrp_eval.txt" ) 
     with open(output_filename, 'a') as f:
-        for el in results:
-            print(el)
-            i, cost = el
-            f.write(f"{i},{cost}\n")
+        f.write(f"0,{cost}\n")
+
     print(f"Written cost results of PyVRP in file: {output_filename}")
 
+
+
+    #result = solve(data, stop=MaxRuntime(args.max_time), display=True)
+    #results = [[0, result.best.distance_cost()]]
+    #print(f"DEBUG: results: {results}")
+    #
+    #output_filename = os.path.join(args.output_dir, "search", "pyvrp_eval_batch.txt" ) 
+    #with open(output_filename, 'a') as f:
+    #    for el in results:
+    #        print(el)
+    #        i, cost = el
+    #        f.write(f"{i},{cost}\n")
+    #print(f"Written cost results of PyVRP in file: {output_filename}")
+
     if args.plot_solution:
-        #figures_path = os.path.join(args.output_dir, 'figures')
         figures_path = Path('/home/pettena/NLNSTW/temp/')
         _, ax = plt.subplots(figsize=(8, 8))
-        #plot_solution(result.best, m.data(), path=figures_path, name="pyvrp_final_sol")
         plot_solution(result.best, data, path=figures_path, name="pyvrp_final_sol")
     
 
@@ -133,7 +148,7 @@ def eval_batch(args):
                 display     = False)
         results.append([i, cost])
 
-    output_filename = os.path.join(args.output_dir, "search", "pyvrp_eval_batch.txt" ) 
+    output_filename = os.path.join(args.output_dir, "search", "pyvrp_eval.txt" ) 
     with open(output_filename, 'a') as f:
         for el in results:
             print(el)

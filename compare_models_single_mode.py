@@ -244,6 +244,7 @@ if not found_pyvrp_file:
         ]
     
     logging.debug(f"PyVRP command: {cmd_pyvrp}")
+    (f"PyVRP command: {cmd_pyvrp}")
     
     subprocess.run(cmd_pyvrp, check=True)
 
@@ -268,7 +269,7 @@ nlns_dists = [
     ]
 pyvrp_costs = []
 if not found_pyvrp_file:
-    pyvrp_filepath = os.path.join(output_path, "search", "pyvrp_eval_batch.txt")
+    pyvrp_filepath = os.path.join(output_path, "search", "pyvrp_eval.txt")
 with open(pyvrp_filepath, 'r') as f:
     pyvrp_costs = f.read().splitlines()
     assert len(pyvrp_costs) == len(nlns_dists)
