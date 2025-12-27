@@ -40,6 +40,12 @@ if __name__ == '__main__':
         else:
             run_id = np.random.randint(10000, 99999)
 
+    if config.seed is not None:
+        torch.manual_seed(config.seed)
+        rng = np.random.default_rng(config.seed)
+    else:
+        rng = np.random.default_rng()
+
     # Creating output directories
     if config.output_path == "":
         config.output_path = os.getcwd()
@@ -50,8 +56,10 @@ if __name__ == '__main__':
         os.makedirs(os.path.join(config.output_path, "search"))
 
     # Create logger and log run parameters
+    log_name = os.path.join(config.output_path, "log_" + str(run_id) + ".txt")
+    print(f"Logging to {log_name}")
     logging.basicConfig(
-        filename=os.path.join(config.output_path, "log_" + str(run_id) + ".txt"), filemode='w',
+        filename=log_name, filemode='w',
         level=logging.INFO, format='[%(levelname)s]%(message)s')
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
     logging.info("Started")
@@ -75,7 +83,8 @@ if __name__ == '__main__':
         critic = VrpCriticModel(config.critic_hidden_size).to(config.device)
 
         model_path = train.train_nlns(actor, critic, run_id, config)
-        search.evaluate_batch_search(config, model_path)
+        print(f"Logged training to {log_name}")
+        search.evaluate_batch_search(config, model_path, rng)
     elif config.mode == "eval_batch":
         if config.instance_path and not config.instance_path.endswith(".pkl"):
             raise Exception("Batch mode only supports .pkl instances files.")

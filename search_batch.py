@@ -9,7 +9,7 @@ from vrp.data_utils import create_dataset, read_instances_pkl
 EMA_ALPHA = 0.2
 
 
-def lns_batch_search(instances, max_iterations, timelimit, operator_pairs, config):
+def lns_batch_search(instances, max_iterations, timelimit, operator_pairs, config, rng):
     if len(instances) % config.lns_batch_size != 0:
         raise Exception("Instance set size must be multiple of lns_batch_size for batch search.")
 
@@ -40,7 +40,7 @@ def lns_batch_search(instances, max_iterations, timelimit, operator_pairs, confi
         start_time_destroy = time.time()
 
         # Destroy instances
-        search.destroy_instances(instances, destroy_procedure, p_destruction)
+        search.destroy_instances(rng, instances, destroy_procedure, p_destruction)
 
         # Repair instances
         for i in range(int(len(instances) / config.lns_batch_size)):
@@ -76,7 +76,7 @@ def lns_batch_search(instances, max_iterations, timelimit, operator_pairs, confi
 
 
 def _lns_batch_search_job(args):
-    (i, test_size, config, model_path) = args
+    (i, test_size, config, model_path, rng) = args
     if config.instance_path is None:
         instances = create_dataset(size=test_size, config=config, seed=config.validation_seed + 1 + i)
     else:
@@ -88,12 +88,12 @@ def _lns_batch_search_job(args):
         instance.create_initial_solution()
 
     costs, nb_iterations = lns_batch_search(instances, config.lns_max_iterations, config.lns_timelimit, lns_operations,
-                                            config)
+                                            config, rng)
 
     return i, costs, nb_iterations
 
 
-def lns_batch_search_mp(config, model_path):
+def lns_batch_search_mp(config, model_path, rng):
     if config.instance_path is None:
         nb_instances = config.test_size
     else:
@@ -105,9 +105,9 @@ def lns_batch_search_mp(config, model_path):
         with mp.Pool(config.lns_nb_cpus) as pool:
             results = pool.map(
                 _lns_batch_search_job,
-                [(i, test_size_per_cpu, config, model_path) for i in range(config.lns_nb_cpus)]
+                [(i, test_size_per_cpu, config, model_path, rng) for i in range(config.lns_nb_cpus)]
             )
     else:
-        results = _lns_batch_search_job((0, test_size_per_cpu, config, model_path))
+        results = _lns_batch_search_job((0, test_size_per_cpu, config, model_path, rng))
         results = [results]
     return results

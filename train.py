@@ -14,7 +14,7 @@ from search import LnsOperatorPair
 from tqdm import tqdm, trange
 import wandb
 
-def get_datasets(config):
+def get_datasets(config, rng):
     # first check if the datasets exist 
     if config.val_dataset is not None:
         assert os.path.exists(config.val_dataset)
@@ -30,7 +30,8 @@ def get_datasets(config):
             size            = batch_size * config.nb_batches_training_set, 
             config          = config,
             create_solution = True, 
-            use_cost_memory = False)
+            use_cost_memory = False,
+            rng             = rng)
     else: 
         logging.info(f"Reading training data from {config.train_dataset}...")
         training_set = read_dataset(
@@ -45,8 +46,8 @@ def get_datasets(config):
         validation_instances = create_dataset(
             size            = config.valid_size, 
             config          = config, 
-            seed            = config.validation_seed,
-            create_solution = True)
+            create_solution = True,
+            rng             = rng)
     else:
         logging.info(f"Reading validation data from {config.val_dataset}")
         assert os.path.isdir(config.val_dataset)
@@ -61,8 +62,13 @@ def get_datasets(config):
     return training_set, validation_instances
 
 def train_nlns(actor, critic, run_id, config):
+    #set up seed for reproducibility
+    if config.seed is not None:
+        rng = np.random.default_rng(config.seed)
+    else:
+        rng = np.random.default_rng()
 
-    training_set, validation_instances = get_datasets(config)
+    training_set, validation_instances = get_datasets(config, rng)
 
     actor_optim = optim.Adam(actor.parameters(), lr=config.actor_lr)
     actor.train()
@@ -97,9 +103,9 @@ def train_nlns(actor, critic, run_id, config):
                         training_set[training_set_batch_idx * batch_size: (training_set_batch_idx + 1) * batch_size]]
 
         # Destroy and repair the set of instances
-        destroy_instances(tr_instances, config.lns_destruction, config.lns_destruction_p)
+        destroy_instances(rng, tr_instances, config.lns_destruction, config.lns_destruction_p)
         costs_destroyed = [instance.get_costs_incomplete(config.round_distances) for instance in tr_instances]
-        tour_indices, tour_logp, critic_est = repair.repair(tr_instances, actor, config, critic)
+        tour_indices, tour_logp, critic_est = repair.repair(tr_instances, actor, config, critic, rng)
         costs_repaired = [instance.get_costs(config.round_distances) for instance in tr_instances]
 
         # Reward/Advantage computation
@@ -137,6 +143,10 @@ def train_nlns(actor, critic, run_id, config):
             train_cost_batch = np.mean(costs_repaired) # mean repair cost OF THE CURRENT BATCH
             train_cost_batch_destroyed = np.mean(costs_destroyed) 
 
+
+            # validation costs
+            val_cost_snapshot = lns_validation_search(validation_instances, actor, config, rng) # mean lns cost over validation_instances
+
             if config.wandb:
                 wandb.log({
                     'batch_idx': int(batch_idx), 
@@ -147,6 +157,7 @@ def train_nlns(actor, critic, run_id, config):
                     'train/train_cost_batch_destroyed': float(train_cost_batch_destroyed),
                     'train/min_costs_destroyed_batch': float(min(costs_destroyed)),
                     'train/max_costs_destroyed_batch': float(max(costs_destroyed)),
+                    'train/val_cost_snapshot': float(val_cost_snapshot),
                 })
 
         # Log performance every 250 batches
@@ -158,8 +169,8 @@ def train_nlns(actor, critic, run_id, config):
                 f'Batch {batch_idx}/{config.nb_train_batches}, repair costs (reward): {mean_reward:2.3f}, loss: {mean_loss:2.6f}'
                 f', critic_loss: {mean_critic_loss:2.6f}')
 
-        # Evaluate and save model every 5000 batches
-        if batch_idx % 5000 == 0 or batch_idx == config.nb_train_batches:
+        # Evaluate and save model every 200 batches
+        if batch_idx % 200 == 0 or batch_idx == config.nb_train_batches:
             mean_costs = lns_validation_search(validation_instances, actor, config)
             model_data = {
                 'parameters': actor.state_dict(),
@@ -197,11 +208,11 @@ def train_nlns(actor, critic, run_id, config):
     return incumbent_model_path
 
 
-def lns_validation_search(validation_instances, actor, config):
+def lns_validation_search(validation_instances, actor, config, rng):
     validation_instances_copies = [deepcopy(instance) for instance in validation_instances]
     actor.eval()
     operation = LnsOperatorPair(actor, config.lns_destruction, config.lns_destruction_p)
     costs, _ = lns_batch_search(validation_instances_copies, config.lns_max_iterations,
-                                config.lns_timelimit_validation, [operation], config)
+                                config.lns_timelimit_validation, [operation], config, rng)
     actor.train()
     return np.mean(costs)

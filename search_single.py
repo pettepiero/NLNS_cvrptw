@@ -105,7 +105,7 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
     if plot_sol: # plot initial solution
         sol = vrp_to_plot_solution(instance)
         data = pyvrp_read(instance_path) 
-        plot_solution(sol, data, name='final_sol', path='/home/pettena/NLNSTW/temp/',plot_title=f'Final sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
+        plot_solution(sol, data, name='initial_sol', path='/home/pettena/NLNSTW/temp/',plot_title=f'Final sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
 
     start_time = time.time()
     incumbent_costs = instance.get_costs(config.round_distances)
@@ -144,7 +144,7 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
     if plot_sol: # plot final solution
         sol = vrp_to_plot_solution(instance)
         data = pyvrp_read(instance_path) 
-        plot_solution(sol, data, name='initial_sol', path='/home/pettena/NLNSTW/temp/',plot_title=f'Initial sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
+        plot_solution(sol, data, name='final_sol', path='/home/pettena/NLNSTW/temp/',plot_title=f'Initial sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
     plot_instance(instance, filename=f"./temp/final_sol_single_mode.png")
     print(f"Plotted solution to ./temp/final_sol_single_mode.png")
 

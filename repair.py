@@ -2,11 +2,13 @@
 
 import torch
 import numpy as np
-from vrp import vrp_problem
+from vrp import vrp_problem 
 import torch.nn.functional as F
+import logging
 
 
-def _actor_model_forward(actor, instances, static_input, dynamic_input, config, vehicle_capacity):
+log = logging.getLogger(__name__)
+def _actor_model_forward(actor, instances, static_input, dynamic_input, config, vehicle_capacity, rng):
     batch_size = static_input.shape[0]
     N = static_input.shape[1]
     tour_idx, tour_logp = [], []
@@ -14,7 +16,7 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
     instance_repaired = np.zeros(batch_size)
 
     origin_idx = np.zeros((batch_size), dtype=int)
-    last_dim = torch.zeros((batch_size, N, 1), dtype=int, device=static_input.device)
+    last_dim = torch.zeros((batch_size, N, 1), dtype=float, device=static_input.device)
 
     iter = 0
     while not instance_repaired.all():
@@ -22,24 +24,23 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
         # if origin_idx == 0 select the next tour end that serves as the origin at random
         for i, instance in enumerate(instances):
             if origin_idx[i] == 0 and not instance_repaired[i]:
-                origin_idx[i] = np.random.choice(instance.open_nn_input_idx, 1).item()
+                if rng is None:
+                    origin_idx[i] = np.random.choice(instance.open_nn_input_idx, 1).item()
+                else:
+                    origin_idx[i] = rng.choice(instance.open_nn_input_idx, 1).item()
             last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i])
-        mask = vrp_problem.get_mask(origin_idx, dynamic_input, instances, config, vehicle_capacity).to(
-            config.device).float()
-
-        #last_dim = torch.from_numpy(last_dim).to(device=static_input.device)
-        #last_dim.to(device=static_input.device)
 
         # Rescale customer demand based on vehicle capacity
         dynamic_input_last_dim = torch.cat((dynamic_input, last_dim), dim=-1)
         dynamic_input_float = dynamic_input_last_dim.float()
         dynamic_input_float[:, :, 0] = dynamic_input_float[:, :, 0] / float(vehicle_capacity)
 
-        # append last dimension of dynamic_input_float which depends on selected origin_idx
-        last_dims = np.zeros((batch_size, N, 1), dtype=int)
-
         origin_static_input = static_input[torch.arange(batch_size), origin_idx]
         origin_dynamic_input_float = dynamic_input_float[torch.arange(batch_size), origin_idx]
+
+        mask = vrp_problem.get_mask(origin_idx, static_input, dynamic_input_float, instances, config, vehicle_capacity).to(
+            config.device).float()
+
 
         # Forward pass. Returns a probability distribution over the point (tour end or depot) that origin should be connected to
         probs = actor.forward(static_input, dynamic_input_float, origin_static_input, origin_dynamic_input_float, mask)
@@ -64,6 +65,9 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
         for i, instance in enumerate(instances):
             idx_from = origin_idx[i].item()
             idx_to = ptr_np[i]
+            log.info(f"\t For instance {i}/{len(instances)} sampled: idx_from={idx_from}, idx_to={idx_to}")
+            log.info(f"\t It means tour_from: {instance.nn_input_idx_to_tour[idx_from][0]} | tour_to: {instance.nn_input_idx_to_tour[idx_to][0]}")
+            log.info(f"\t mask: {mask}")
             if idx_from == 0 and idx_to == 0:  # No need to update in this case
                 continue
 
@@ -102,7 +106,7 @@ def _critic_model_forward(critic, static_input, dynamic_input, batch_capacity):
     return critic.forward(static_input, dynamic_input_float).view(-1)
 
 
-def repair(instances, actor, config, critic=None):
+def repair(instances, actor, config, critic=None, rng=None):
     nb_input_points = max([instance.get_max_nb_input_points() for instance in instances])  # Max. input points of batch
     batch_size = len(instances)
 
@@ -123,6 +127,6 @@ def repair(instances, actor, config, critic=None):
     if critic is not None:
         cost_estimate = _critic_model_forward(critic, static_input, dynamic_input, vehicle_capacity)
 
-    tour_idx, tour_logp = _actor_model_forward(actor, instances, static_input, dynamic_input, config, vehicle_capacity)
+    tour_idx, tour_logp = _actor_model_forward(actor, instances, static_input, dynamic_input, config, vehicle_capacity, rng)
 
     return tour_idx, tour_logp, cost_estimate

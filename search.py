@@ -18,14 +18,14 @@ class LnsOperatorPair:
         self.p_destruction = p_destruction
 
 
-def destroy_instances(instances, destroy_procedure=None, destruction_p=None):
+def destroy_instances(rng, instances, destroy_procedure=None, destruction_p=None):
     for instance in instances:
         if destroy_procedure == "R":
-            instance.destroy_random(destruction_p)
+            instance.destroy_random(destruction_p, rng=rng)
         elif destroy_procedure == "P":
-            instance.destroy_point_based(destruction_p)
+            instance.destroy_point_based(destruction_p, rng=rng)
         elif destroy_procedure == "T":
-            instance.destroy_tour_based(destruction_p)
+            instance.destroy_tour_based(destruction_p, rng=rng)
 
 
 def load_operator_pairs(path, config):
@@ -51,14 +51,14 @@ def load_operator_pairs(path, config):
     return lns_operator_pairs
 
 
-def evaluate_batch_search(config, model_path):
+def evaluate_batch_search(config, model_path, rng):
     assert model_path is not None, 'No model path given'
 
     logging.info('### Batch Search ###')
     logging.info('Starting search')
     start_time = time.time()
 
-    results = search_batch.lns_batch_search_mp(config, model_path)
+    results = search_batch.lns_batch_search_mp(config, model_path, rng)
 
     runtime = (time.time() - start_time)
     instance_id, costs, iterations = [], [], []

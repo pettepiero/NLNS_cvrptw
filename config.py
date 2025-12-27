@@ -10,6 +10,7 @@ def get_config():
     parser.add_argument('--device', default='cuda', type=str)
     parser.add_argument('--round_distances', default=False, action='store_true')
     parser.add_argument('--allow_split_delivery', dest='split_delivery', default=False, action='store_true')
+    parser.add_argument('--seed', default=None, type=int)
 
     # Training
     parser.add_argument('--actor_lr', default=1e-4, type=float)
