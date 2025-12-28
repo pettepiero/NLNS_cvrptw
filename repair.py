@@ -32,14 +32,21 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
 
         # Rescale customer demand based on vehicle capacity
         dynamic_input_last_dim = torch.cat((dynamic_input, last_dim), dim=-1)
+
+        mask = vrp_problem.get_mask(origin_idx, static_input, dynamic_input_last_dim, instances, config, vehicle_capacity).to(
+            config.device).float()
+
         dynamic_input_float = dynamic_input_last_dim.float()
         dynamic_input_float[:, :, 0] = dynamic_input_float[:, :, 0] / float(vehicle_capacity)
 
         origin_static_input = static_input[torch.arange(batch_size), origin_idx]
         origin_dynamic_input_float = dynamic_input_float[torch.arange(batch_size), origin_idx]
-
-        mask = vrp_problem.get_mask(origin_idx, static_input, dynamic_input_float, instances, config, vehicle_capacity).to(
-            config.device).float()
+        #log.info(f"In repair: static_input:")
+        #for el in static_input:
+        #    log.info(el)
+        #log.info(f"In repair: dynamic_input_float:")
+        #for el in dynamic_input_float:
+        #    log.info(el)
 
 
         # Forward pass. Returns a probability distribution over the point (tour end or depot) that origin should be connected to
@@ -65,9 +72,10 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
         for i, instance in enumerate(instances):
             idx_from = origin_idx[i].item()
             idx_to = ptr_np[i]
-            log.info(f"\t For instance {i}/{len(instances)} sampled: idx_from={idx_from}, idx_to={idx_to}")
-            log.info(f"\t It means tour_from: {instance.nn_input_idx_to_tour[idx_from][0]} | tour_to: {instance.nn_input_idx_to_tour[idx_to][0]}")
-            log.info(f"\t mask: {mask}")
+            #log.info(f"\t For instance {i}/{len(instances)} sampled: idx_from={idx_from}, idx_to={idx_to}")
+            #log.info(f"\t It means tour_from: {instance.nn_input_idx_to_tour[idx_from][0]} | tour_to: {instance.nn_input_idx_to_tour[idx_to][0]}")
+            #log.info(f"\t Used mask for above sample: {mask}")
+            #log.info(f"\t Number of possible actions: {[int(sum(l).item()) for l in mask]}")
             if idx_from == 0 and idx_to == 0:  # No need to update in this case
                 continue
 

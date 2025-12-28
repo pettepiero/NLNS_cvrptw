@@ -471,16 +471,16 @@ class VRPInstance():
     def do_action(self, id_from, id_to):
         """Performs an action. The tour end represented by input with the id id_from is connected to the tour end
          presented by the input with id id_to."""
-        log.info(f"\n\nin do_action | id_from: {id_from}, id_to {id_to}")
-        log.info(f"in do_action | self.solution:")
-        for el in self.solution:
-            log.info(el)
+        #log.info(f"\n\nin do_action | id_from: {id_from}, id_to {id_to}")
+        #log.info(f"in do_action | self.solution:")
+        #for el in self.solution:
+        #    log.info(el)
         tour_from = self.nn_input_idx_to_tour[id_from][0]  # Tour that should be connected
         tour_to = self.nn_input_idx_to_tour[id_to][0]  # to this tour.
-        log.info(f"in do_action | tour_from: {tour_from}, tour_to {tour_to}")
+        #log.info(f"in do_action | tour_from: {tour_from}, tour_to {tour_to}")
         pos_from = self.nn_input_idx_to_tour[id_from][1]  # Position of the location that should be connected in tour_from
         pos_to = self.nn_input_idx_to_tour[id_to][1]  # Position of the location that should be connected in tour_to
-        log.info(f"in do_action | pos_from: {pos_from}, pos_to {pos_to}")
+        #log.info(f"in do_action | pos_from: {pos_from}, pos_to {pos_to}")
 
         nn_input_update = []  # Instead of recalculating the tensor representation, we only compute an update description.
         # This improves performance.
@@ -500,16 +500,19 @@ class VRPInstance():
             tour_from, tour_to = tour_to, tour_from
         elif len(tour_from) > 1 and pos_from == 0:
             tour_from.reverse()
-        log.info(f"in do_action, after changing orders | tour_from: {tour_from}, tour_to {tour_to}")
+        #log.info(f"in do_action, after changing orders | tour_from: {tour_from}, tour_to {tour_to}")
         # Now we only need to consider two cases 1) Connecting an incomplete tour with more than one location
         # to an incomplete tour with more than one location 2) Connecting an incomplete tour (single
         # or multiple locations) to incomplete tour consisting of a single location
 
         # Case 1
         if len(tour_from) > 1 and len(tour_to) > 1:
-            log.info(f"in do_action | case #1")
+            #log.info(f"in do_action | case #1")
             combined_demand = sum(l[1] for l in tour_from) + sum(l[1] for l in tour_to)
-            log.info(f"in do_action | combined_demand = {combined_demand} >? self.capacity: {combined_demand > self.capacity}")
+            #log.info(f"in do_action | combined_demand = {combined_demand} >? self.capacity: {combined_demand > self.capacity}")
+            if combined_demand > self.capacity:
+                log.info(f"\n\n**************************************************\n"
+                f"Failed: logged to {get_logger_file_name()}\n\n")
             assert combined_demand <= self.capacity  # This is ensured by the masking schema
 
             # The two incomplete tours are combined to one (in)complete tour. All network inputs associated with the
@@ -522,7 +525,7 @@ class VRPInstance():
 
         # Case 2
         if len(tour_to) == 1:
-            log.info(f"in do_action | case #2")
+            #log.info(f"in do_action | case #2")
             demand_from = sum(l[1] for l in tour_from)
             combined_demand = demand_from + sum(l[1] for l in tour_to)
             unfulfilled_demand = combined_demand - self.capacity
@@ -659,17 +662,25 @@ class VRPInstance():
 def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config, capacity):
     """ Returns a mask for the current nn_input"""
     batch_size = origin_nn_input_idx.shape[0]
+    #log.info(f"\n\tin get_mask | origin_nn_input_idx = {origin_nn_input_idx}")
+    #log.info(f"\tin get_mask | batch_size = {batch_size}")
 
     last_dims = dynamic_input[:, :, -1]
+    #log.info(f"\tin get_mask | last_dims = {last_dims}")
     current_times = last_dims[torch.arange(last_dims.size(0)), origin_nn_input_idx]
+    #log.info(f"\tin get_mask | current_times = {current_times}")
     arrival_times = last_dims[torch.arange(last_dims.size(0)), :] + current_times.unsqueeze(-1)
+    #log.info(f"\tin get_mask | arrival_times = {arrival_times}")
     tw_end = static_input[:,:,3]
+    #log.info(f"\tin get_mask | tw_end = {tw_end}")
 
     time_feasible = (arrival_times <= tw_end).cpu().numpy().astype(int)
+    #log.info(f"\tin get_mask | time_feasible = {time_feasible}")
 
     # Start with all used input positions
     mask = (dynamic_input[:, :, 1] != 0).cpu().long().numpy()
     mask = mask * time_feasible
+    #log.info(f"\tin get_mask | mask = {mask}")
 
     for i in range(batch_size):
         idx_from = origin_nn_input_idx[i]
@@ -689,10 +700,12 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
         mask[i, idx_from] = 0
 
     mask = torch.from_numpy(mask)
+    #log.info(f"\tin get_mask | mask = {mask}")
 
     origin_tour_demands = dynamic_input[torch.arange(batch_size), origin_nn_input_idx, 0]
-    combined_demand = origin_tour_demands.unsqueeze(1).expand(batch_size, dynamic_input.shape[1]) + dynamic_input[:, :,
-                                                                                                    0]
+    #log.info(f"\tin get_mask | origin_tour_demands: {origin_tour_demands}")
+    combined_demand = origin_tour_demands.unsqueeze(1).expand(batch_size, dynamic_input.shape[1]) + dynamic_input[:, :,0]
+    #log.info(f"\tin get_mask | combined_demand: {combined_demand}")
 
     if config.split_delivery:
         raise NotImplementedError #not implemented for cvrptw
@@ -709,7 +722,22 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
         mask[combined_demand > capacity] = 0
 
     mask[:, 0] = 1  # Always allow to go to the depot
+    #log.info(f"\tin get_mask | mask = {mask}")
 
     return mask
 
 
+
+def get_logger_file_name():
+    # 1. Look for a FileHandler in the current logger or its parents (root)
+    log_file = "Console/Unknown"
+    current_logger = log
+    while current_logger:
+        for handler in current_logger.handlers:
+            if isinstance(handler, logging.FileHandler):
+                log_file = handler.baseFilename
+                break
+        if log_file != "Console/Unknown" or not current_logger.propagate:
+            break
+        current_logger = current_logger.parent
+    return str(log_file)

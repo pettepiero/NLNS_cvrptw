@@ -171,7 +171,7 @@ def train_nlns(actor, critic, run_id, config):
 
         # Evaluate and save model every 200 batches
         if batch_idx % 200 == 0 or batch_idx == config.nb_train_batches:
-            mean_costs = lns_validation_search(validation_instances, actor, config)
+            mean_costs = lns_validation_search(validation_instances, actor, config, rng)
             model_data = {
                 'parameters': actor.state_dict(),
                 'model_name': "VrpActorModel",

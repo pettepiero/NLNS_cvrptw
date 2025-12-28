@@ -78,7 +78,8 @@ def lns_batch_search(instances, max_iterations, timelimit, operator_pairs, confi
 def _lns_batch_search_job(args):
     (i, test_size, config, model_path, rng) = args
     if config.instance_path is None:
-        instances = create_dataset(size=test_size, config=config, seed=config.validation_seed + 1 + i)
+        rng = np.random.default_rng(i)
+        instances = create_dataset(size=test_size, config=config, rng=rng)
     else:
         instances = read_instances_pkl(config.instance_path, test_size * i, test_size)
 
