@@ -107,6 +107,7 @@ def train_nlns(actor, critic, run_id, config):
         costs_destroyed = [instance.get_costs_incomplete(config.round_distances) for instance in tr_instances]
         tour_indices, tour_logp, critic_est = repair.repair(tr_instances, actor, config, critic, rng)
         costs_repaired = [instance.get_costs(config.round_distances) for instance in tr_instances]
+        late_mins = [instance.get_sum_late_mins() for instance in tr_instances]
 
         # Reward/Advantage computation
         reward = np.array(costs_repaired) - np.array(costs_destroyed)
@@ -145,7 +146,7 @@ def train_nlns(actor, critic, run_id, config):
 
 
             # validation costs
-            val_cost_snapshot = lns_validation_search(validation_instances, actor, config, rng) # mean lns cost over validation_instances
+            #val_cost_snapshot = lns_validation_search(validation_instances, actor, config, rng) # mean lns cost over validation_instances
 
             if config.wandb:
                 wandb.log({
@@ -157,7 +158,8 @@ def train_nlns(actor, critic, run_id, config):
                     'train/train_cost_batch_destroyed': float(train_cost_batch_destroyed),
                     'train/min_costs_destroyed_batch': float(min(costs_destroyed)),
                     'train/max_costs_destroyed_batch': float(max(costs_destroyed)),
-                    'train/val_cost_snapshot': float(val_cost_snapshot),
+                    #'train/val_cost_snapshot': float(val_cost_snapshot),
+                    'train/sum_late_mins': int(sum(late_mins)),
                 })
 
         # Log performance every 250 batches

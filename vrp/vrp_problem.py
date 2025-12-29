@@ -60,19 +60,44 @@ class VRPInstance():
         """Create an initial solution for this instance using a greedy heuristic."""
         self.solution = [[[0, 0, 0]], [[0, 0, 0]]]
         cur_load = self.capacity
-        mask = np.array([True] * (self.nb_customers + 1))
-        mask[0] = False
-        while mask.any():
-            closest_customer_idx = self.get_n_closest_locations_to(self.solution[-1][-1][0], mask, 1)[0]
-            if self.demand[closest_customer_idx] <= cur_load:
-                mask[closest_customer_idx] = False
-                self.solution[-1].append([int(closest_customer_idx), int(self.demand[closest_customer_idx]), None])
-                cur_load -= self.demand[closest_customer_idx]
-            else:
-                self.solution[-1].append([0, 0, 0])
-                self.solution.append([[0, 0, 0]])
-                cur_load = self.capacity
-        self.solution[-1].append([0, 0, 0])
+        visited_mask = np.array([True] * (self.nb_customers + 1))
+        visited_mask[0] = False
+        t = 0
+        while visited_mask.any():
+            # update mask for customers that are reachable in time
+            current_tour = [[0, 0, 0]]
+            self.solution.append(current_tour)
+            cur_load = self.capacity
+            t = 0
+            current_node = 0
+
+            while True:
+                custs_indices = np.arange(self.nb_customers +1)
+                travel_times = self.speed_f * self.distances[current_node][custs_indices]
+                arrival_times = t + travel_times
+                in_time = (arrival_times <= self.time_window[:, 1])
+                temp_mask = visited_mask & in_time
+
+                if not temp_mask.any():
+                    break
+
+                closest_customer_idx = self.get_n_closest_locations_to(current_node, temp_mask, 1)[0]
+
+                if self.demand[closest_customer_idx] <= cur_load:
+                    # add to tour
+                    visited_mask[closest_customer_idx] = False
+                    current_tour.append([int(closest_customer_idx), int(self.demand[closest_customer_idx]), None])
+
+                    arrival = t + self.speed_f * self.distances[current_node][closest_customer_idx]
+                    start_service = max(arrival, self.time_window[closest_customer_idx][0])
+                    t = start_service + self.service_time
+                    cur_load -= self.demand[closest_customer_idx]
+                    current_node = closest_customer_idx
+                else:
+                    # vehicle is full even if customer was in time
+                    break
+            
+            self.solution[-1].append([0, 0, 0])
 
         #create schedule
         self.schedule = []
@@ -376,7 +401,7 @@ class VRPInstance():
         nn_input = np.zeros((input_size, 6))
         nn_input[0, :2] = self.locations[0]  # Depot location
         nn_input[0, 2] = 0
-        nn_input[0, 3] = self.max_time 
+        nn_input[0, 3] = self.max_time / self.max_time
         nn_input[0, 4] = -1 * self.capacity  # Depot demand
         nn_input[0, 5] = -1  # Depot state
         network_input_idx_to_tour = [None] * input_size

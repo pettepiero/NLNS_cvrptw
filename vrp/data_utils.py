@@ -197,6 +197,17 @@ def read_instance(path, pkl_instance_idx=0):
     else:
         raise Exception("Unknown instance file type.")
 
+def get_max_time(tw):
+    max_t = max(tw[:,1])
+    if 0 < max_t <= 100:
+        return 100
+    elif 100 < max_t <= 1000:
+        return 1000
+    elif 1000 < max_t <= 10000:
+        return 10000
+    else:
+        raise ValueError
+    
 
 def read_instance_vrp(path):
     file = open(path, "r")
@@ -226,6 +237,8 @@ def read_instance_vrp(path):
     demand = demand[:, 1:].squeeze()
     time_window = time_window[:, 1:]
 
+    max_time = get_max_time(time_window)
+
     instance = VRPInstance(
         nb_customers        = dimension - 1, 
         locations           = locations, 
@@ -234,7 +247,7 @@ def read_instance_vrp(path):
         capacity            = capacity,
         time_window         = time_window,
         service_time        = service_time,
-        max_time            = blueprint.max_time)
+        max_time            = max_time)
         
     return instance
 
