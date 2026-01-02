@@ -210,8 +210,9 @@ def get_max_time(tw):
     
 
 def read_instance_vrp(path):
-    file = open(path, "r")
-    lines = [ll.strip() for ll in file]
+    with open(path, 'r') as file:
+        lines = [ll.strip() for ll in file]
+
     i = 0
     while i < len(lines):
         line = lines[i]

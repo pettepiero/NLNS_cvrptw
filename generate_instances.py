@@ -89,12 +89,13 @@ if __name__ == "__main__":
     assert config.instance_blueprint.startswith("TW_"), 'Only TW are supported'
 
     np.random.seed(config.seed)
+    rng = np.random.default_rng(config.seed)
     if not os.path.exists(config.data_dir):
         os.makedirs(config.data_dir)
     blueprint = get_blueprint(config.instance_blueprint)
 
     for i in range(config.dataset_size):
-        instance = generate_Instance(blueprint, False)
+        instance = generate_Instance(blueprint, False, rng)
 
         name = "{}_seed_{}_id_{}".format(config.instance_blueprint, config.seed, i)
         filename = os.path.join(config.data_dir, name + ".vrp")

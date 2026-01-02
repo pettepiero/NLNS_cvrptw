@@ -13,7 +13,7 @@ def get_distances_matrix(locations):
 
 log = logging.getLogger(__name__)
 class VRPInstance():
-    def __init__(self, nb_customers, locations, original_locations, demand, capacity, time_window, service_time, max_time, late_coeff=100, use_cost_memory=True, schedule=None):
+    def __init__(self, nb_customers, locations, original_locations, demand, capacity, time_window, service_time, max_time, late_coeff=1, use_cost_memory=True, schedule=None):
         self.nb_customers = nb_customers
         self.locations = locations  # coordinates of all locations in the interval [0, 1]
         self.original_locations = original_locations  # original coordinates of locations (used to compute objective
@@ -113,7 +113,6 @@ class VRPInstance():
         """Return the cost of the current complete solution. Uses a memory to improve performance."""
         c = 0
         late_mins   = 0
-        #early_mins  = 0
         for route_idx, t in enumerate(self.solution):
             if t[0][0] != 0 or t[-1][0] != 0:
                 raise Exception("Incomplete solution.")
@@ -131,17 +130,13 @@ class VRPInstance():
                     c += self.costs_memory[from_idx, to_idx]
 
                 late_mins   += max(0, self.schedule[route_idx][i][1] - self.time_window[from_idx][1])
-                #early_mins  += max(0, self.time_window[from_idx][0] - self.schedule[route_idx][i][0])
-                
-            #c += self.early_coeff*early_mins + self.late_coeff*late_mins
-            c += self.late_coeff*late_mins
+                c += self.late_coeff*late_mins
         return c
 
     def get_costs(self, round):
         """Return the cost of the current complete solution."""
         c = 0
         late_mins   = 0
-        #early_mins  = 0
         for route_idx, t in enumerate(self.solution):
             if t[0][0] != 0 or t[-1][0] != 0:
                 raise Exception("Incomplete solution.")
@@ -153,17 +148,14 @@ class VRPInstance():
                 if round:
                     cc = np.round(cc)
                 c += cc
-                late_mins   += max(0, self.schedule[route_idx][i][1] - self.time_window[from_idx][1])
-                #early_mins  += max(0, self.time_window[from_idx][0] - self.schedule[route_idx][i][0])
-            #c += self.early_coeff*early_mins + self.late_coeff*late_mins
-            c += self.late_coeff*late_mins
+                late_mins = max(0, self.schedule[route_idx][i][1] - self.time_window[from_idx][1])
+                c += self.late_coeff*late_mins
         return c
 
     def get_costs_incomplete(self, round):
         """Return the cost of the current incomplete solution."""
         c = 0
         late_mins   = 0
-        #early_mins  = 0
         for route_idx, tour in enumerate(self.solution):
             if len(tour) <= 1:
                 continue
@@ -176,13 +168,11 @@ class VRPInstance():
                 if round:
                     cc = np.round(cc)
                 c += cc
-                late_mins   += max(0, self.schedule[route_idx][i][1] - self.time_window[from_idx][1])
-                #early_mins  += max(0, self.time_window[from_idx][0] - self.schedule[route_idx][i][0])
-            #c += self.early_coeff*early_mins + self.late_coeff*late_mins
-            c += self.late_coeff*late_mins
+                late_mins = max(0, self.schedule[route_idx][i][1] - self.time_window[from_idx][1])
+                c += self.late_coeff*late_mins
         return c
 
-    def get_total_distance(self, round):
+    def get_total_distance(self, round_dist=False):
         """Return the distance of the current complete solution."""
         c = 0
         for route_idx, t in enumerate(self.solution):
@@ -193,7 +183,7 @@ class VRPInstance():
                 to_idx = t[i + 1][0]
                 cc = np.sqrt((self.original_locations[t[i][0], 0] - self.original_locations[t[i + 1][0], 0]) ** 2
                              + (self.original_locations[t[i][0], 1] - self.original_locations[t[i + 1][0], 1]) ** 2)
-                if round:
+                if round_dist:
                     cc = np.round(cc)
                 c += cc
         return c
@@ -216,8 +206,6 @@ class VRPInstance():
                 sum_late_mins += delay
 
         return sum_late_mins 
-
-
 
     def destroy(self, customers_to_remove_idx):
         """Remove the customers with the given idx from their tours. This creates an incomplete solution."""
@@ -634,7 +622,7 @@ class VRPInstance():
         solution_copy = self.get_solution_copy()
         schedule_copy = [[x[:] for x in tour_sched] for tour_sched in self.schedule]
         new_instance = VRPInstance(self.nb_customers, self.locations, self.original_locations, self.demand,
-                                   self.capacity, self.time_window, self.service_time, schedule=schedule_copy, max_time=self.max_time)
+                                   self.capacity, self.time_window, self.service_time, schedule=schedule_copy, max_time=self.max_time, late_coeff=self.late_coeff)
         new_instance.solution = solution_copy
         new_instance.costs_memory = self.costs_memory
 

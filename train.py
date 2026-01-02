@@ -108,6 +108,7 @@ def train_nlns(actor, critic, run_id, config):
         tour_indices, tour_logp, critic_est = repair.repair(tr_instances, actor, config, critic, rng)
         costs_repaired = [instance.get_costs(config.round_distances) for instance in tr_instances]
         late_mins = [instance.get_sum_late_mins() for instance in tr_instances]
+        distance = [instance.get_total_distance() for instance in tr_instances]
 
         # Reward/Advantage computation
         reward = np.array(costs_repaired) - np.array(costs_destroyed)
@@ -160,6 +161,7 @@ def train_nlns(actor, critic, run_id, config):
                     'train/max_costs_destroyed_batch': float(max(costs_destroyed)),
                     #'train/val_cost_snapshot': float(val_cost_snapshot),
                     'train/sum_late_mins': int(sum(late_mins)),
+                    'train/sum_distance': int(sum(distance)),
                 })
 
         # Log performance every 250 batches
