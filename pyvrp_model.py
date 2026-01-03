@@ -130,9 +130,10 @@ def eval_single(args):
     #print(f"Written cost results of PyVRP in file: {output_filename}")
 
     if args.plot_solution:
-        figures_path = Path('/home/pettena/NLNSTW/temp/')
+        #figures_path = Path('/home/pettena/NLNSTW/temp/')
+        figures_path = Path('/home/pettepiero/tirocinio/NLNS_cvrptw/temp/')
         _, ax = plt.subplots(figsize=(8, 8))
-        plot_solution(result.best, data, path=figures_path, name="pyvrp_final_sol")
+        plot_solution(result.best, data, path=figures_path, name="pyvrp_final_sol", plot_title='PyVRP final sol')
     
 
 
