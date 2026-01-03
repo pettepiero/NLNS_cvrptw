@@ -107,8 +107,6 @@ class VRPInstance():
             else:
                 self.schedule.append([[0,0]])
 
-
-
     def get_costs_memory(self, round):
         """Return the cost of the current complete solution. Uses a memory to improve performance."""
         c = 0

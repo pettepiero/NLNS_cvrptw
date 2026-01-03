@@ -18,3 +18,11 @@ dataset['60'] = InstanceBlueprint(nb_customers=20, depot_position='R', customer_
     demand_type='inter', demand_min=1, demand_max=10, capacity=40, grid_size=1000, service_time=100, max_time=10000, late_coeff=10)  
 dataset['70'] = InstanceBlueprint(nb_customers=20, depot_position='R', customer_position='R', nb_customer_cluster=1,
     demand_type='inter', demand_min=1, demand_max=10, capacity=40, grid_size=1000, service_time=100, max_time=10000, late_coeff=1)  
+dataset['80'] = InstanceBlueprint(nb_customers=20, depot_position='R', customer_position='R', nb_customer_cluster=1,
+    demand_type='inter', demand_min=1, demand_max=10, capacity=40, grid_size=1000, service_time=100, max_time=10000, late_coeff=0.1)  
+dataset['90'] = InstanceBlueprint(nb_customers=20, depot_position='R', customer_position='R', nb_customer_cluster=1,
+    demand_type='inter', demand_min=1, demand_max=10, capacity=40, grid_size=1000, service_time=100, max_time=10000, late_coeff=0.05)
+dataset['100'] = InstanceBlueprint(nb_customers=20, depot_position='R', customer_position='R', nb_customer_cluster=1,
+    demand_type='inter', demand_min=1, demand_max=10, capacity=40, grid_size=1000, service_time=100, max_time=10000, late_coeff=0.2)
+dataset['110'] = InstanceBlueprint(nb_customers=20, depot_position='R', customer_position='R', nb_customer_cluster=1,
+    demand_type='inter', demand_min=1, demand_max=10, capacity=40, grid_size=1000, service_time=100, max_time=10000, late_coeff=2)

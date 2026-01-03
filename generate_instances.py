@@ -36,7 +36,7 @@ def write_vrplib_xe(filename, loc, demand, capacity, grid_size, name="problem"):
         f.write("-1\n")
         f.write("EOF\n")
 
-def write_vrplib_tw(filename, loc, demand, capacity, grid_size, time_window, service_time, name="problem"):
+def write_vrplib_tw(filename, loc, demand, capacity, grid_size, time_window, service_time, late_coeff, name="problem"):
     assert grid_size == 1000 or grid_size == 1000000
 
     with open(filename, 'w+') as f:
@@ -48,7 +48,8 @@ def write_vrplib_tw(filename, loc, demand, capacity, grid_size, time_window, ser
                 ("DIMENSION", len(loc)),
                 ("EDGE_WEIGHT_TYPE", "EUC_2D"),
                 ("CAPACITY", capacity),
-                ("SERVICE_TIME", service_time)
+                ("SERVICE_TIME", service_time),
+                ("LATE_COEFF", late_coeff)
             )
         ]))
         f.write("\n")
@@ -107,5 +108,6 @@ if __name__ == "__main__":
                 grid_size       = blueprint.grid_size, 
                 time_window     = instance.time_window, 
                 service_time    = instance.service_time,
+                late_coeff      = instance.late_coeff,
                 name            = name
                 )

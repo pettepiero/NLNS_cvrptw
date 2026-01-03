@@ -230,7 +230,8 @@ def read_instance_vrp(path):
             i = i + dimension
         elif line.startswith('TIME_WINDOW_SECTION'):
             time_window = np.loadtxt(lines[i + 1:i + 1 + dimension], dtype=int)
-
+        elif line.startswith('LATE_COEFF'):
+            late_coeff = int(line.split(':')[1])
         i += 1
 
     original_locations = locations[:, 1:]
@@ -248,7 +249,8 @@ def read_instance_vrp(path):
         capacity            = capacity,
         time_window         = time_window,
         service_time        = service_time,
-        max_time            = max_time)
+        max_time            = max_time,
+        late_coeff          = late_coeff)
         
     return instance
 
