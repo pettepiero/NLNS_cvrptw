@@ -231,7 +231,7 @@ def read_instance_vrp(path):
         elif line.startswith('TIME_WINDOW_SECTION'):
             time_window = np.loadtxt(lines[i + 1:i + 1 + dimension], dtype=int)
         elif line.startswith('LATE_COEFF'):
-            late_coeff = int(line.split(':')[1])
+            late_coeff = float(line.split(':')[1])
         i += 1
 
     original_locations = locations[:, 1:]
