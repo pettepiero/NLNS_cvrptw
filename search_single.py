@@ -163,3 +163,4 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
         print(el)
 
     return instance.get_costs(config.round_distances), duration, instance.get_total_distance(config.round_distances), instance.get_sum_late_mins()
+    #return instance.get_total_distance(config.round_distances), duration, instance.get_total_distance(config.round_distances), instance.get_sum_late_mins()

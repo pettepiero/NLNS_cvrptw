@@ -294,7 +294,6 @@ class VRPInstance():
 
     def destroy_tour_based(self, p, rng):
         """Tour based destroy. Remove all tours closest to a randomly selected point from a solution."""
-        raise NotImplementedError
         # Make a dictionary that maps customers to tours
         customer_to_tour = {}
         for i, tour in enumerate(self.solution[1:]):
@@ -327,24 +326,33 @@ class VRPInstance():
 
         # Create the new tours that all consist of only a single customer
         new_tours = []
+        new_schedules = []
         removed_customer_idx = []
         for i in tours_to_remove_idx:
             tour = self.solution[i]
             for e in tour[1:-1]:
-                if e[0] in removed_customer_idx:
-                    for new_tour in new_tours:
-                        if new_tour[0][0] == e[0]:
-                            new_tour[0][1] += e[1]
-                            break
-                else:
-                    new_tours.append([e])
-                    removed_customer_idx.append(e[0])
+                #if e[0] in removed_customer_idx:
+                #    for new_tour in new_tours:
+                #        if new_tour[0][0] == e[0]:
+                #            new_tour[0][1] += e[1]
+                #            break
+                #else:
+                #    new_tours.append([e])
+                #    time = int(max(0, self.time_window[e][0] - self.speed_f*self.distances[0][e]))
+                #    new_schedules.append([[time, time + self.service_time]]) 
+                #    removed_customer_idx.append(e[0])
+                new_tours.append([e])
+                time = int(max(0, self.time_window[e[0]][0] - self.speed_f*self.distances[0][e[0]]))
+                new_schedules.append([[time, time + self.service_time]]) 
+                removed_customer_idx.append(e[0])
 
         # Remove the tours that are marked for removal from the solution
         for index in sorted(tours_to_remove_idx, reverse=True):
             del self.solution[index]
+            del self.schedule[index]
 
         self.solution.extend(new_tours)  # Add new tours to solution
+        self.schedule.extend(new_schedules)
         self.incomplete_tours = new_tours
 
     def _get_incomplete_tours(self):
