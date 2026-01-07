@@ -12,11 +12,11 @@ import search
 import traceback
 from plot.plot import plot_instance
 
-
 def lns_single_seach_job(args):
     try:
         id, config, instance_path, model_path, queue_jobs, queue_results, pkl_instance_id = args
 
+        rng = np.random.default_rng(id)
         operator_pairs = search.load_operator_pairs(model_path, config)
         instance = read_instance(instance_path, pkl_instance_id)
 
@@ -52,8 +52,7 @@ def lns_single_seach_job(args):
                 p_destruction = operator_pairs[selected_operator_pair_id].p_destruction
 
                 # Destroy instances
-                search.destroy_instances(instance_copies, destroy_procedure, p_destruction)
-
+                search.destroy_instances(rng, instance_copies, destroy_procedure, p_destruction)
                 # Repair instances
                 for i in range(int(len(instance_copies) / config.lns_batch_size)):
                     with torch.no_grad():

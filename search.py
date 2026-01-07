@@ -8,7 +8,7 @@ from vrp.data_utils import read_instances_pkl
 import glob
 import search_batch
 from actor import VrpActorModel
-
+from tqdm import tqdm
 
 class LnsOperatorPair:
 
@@ -95,7 +95,7 @@ def evaluate_single_search(config, model_path, instance_path):
     else:
         raise Exception("Unknown instance file format.")
 
-    for i, instance_path in enumerate(instance_files_path):
+    for i, instance_path in enumerate(tqdm(instance_files_path)):
         if instance_path.endswith(".pkl") or instance_path.endswith(".vrp") or instance_path.endswith(".sd"):
             for _ in range(config.nb_runs):
                 cost, duration, distance, sum_late_mins = search_single.lns_single_search_mp(instance_path, config.lns_timelimit, config,
