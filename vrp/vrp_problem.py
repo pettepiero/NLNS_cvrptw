@@ -97,7 +97,6 @@ class VRPInstance():
                 else:
                     # vehicle is full even if customer was in time
                     break
-            
             self.solution[-1].append([0, 0, 0])
 
         #create schedule

@@ -12,11 +12,11 @@ import search
 import traceback
 from plot.plot import plot_instance
 
-
 def lns_single_seach_job(args):
     try:
         id, config, instance_path, model_path, queue_jobs, queue_results, pkl_instance_id = args
 
+        rng = np.random.default_rng(id)
         operator_pairs = search.load_operator_pairs(model_path, config)
         instance = read_instance(instance_path, pkl_instance_id)
 

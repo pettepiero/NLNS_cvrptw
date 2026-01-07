@@ -201,16 +201,7 @@ def read_instance(path, pkl_instance_idx=0):
         raise Exception("Unknown instance file type.")
 
 def get_max_time(tw):
-    max_t = max(tw[:,1])
-    if 0 < max_t <= 100:
-        return 100
-    elif 100 < max_t <= 1000:
-        return 1000
-    elif 1000 < max_t <= 10000:
-        return 10000
-    else:
-        raise ValueError
-    
+    return int(tw[0, 1])
 
 def read_instance_vrp(path):
     with open(path, 'r') as file:
