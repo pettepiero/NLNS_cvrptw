@@ -108,9 +108,14 @@ def train_nlns(actor, critic, run_id, config):
         tour_indices, tour_logp, critic_est = repair.repair(tr_instances, actor, config, critic, rng)
         costs_repaired = [instance.get_costs(config.round_distances) for instance in tr_instances]
         late_mins = [instance.get_sum_late_mins() for instance in tr_instances]
+        distance = [instance.get_total_distance() for instance in tr_instances]
+
+        #getting percentages of cost composed by dist or delay
+        perc_dist = sum(distance)/sum(costs_repaired)
+        perc_delay = 1 - perc_dist
 
         # Reward/Advantage computation
-        reward = np.array(costs_repaired) - np.array(costs_destroyed)
+        reward = (np.array(costs_repaired) - np.array(costs_destroyed))/ np.array(costs_destroyed)
         reward = torch.from_numpy(reward).float().to(config.device)
         advantage = reward - critic_est
 
@@ -160,6 +165,9 @@ def train_nlns(actor, critic, run_id, config):
                     'train/max_costs_destroyed_batch': float(max(costs_destroyed)),
                     #'train/val_cost_snapshot': float(val_cost_snapshot),
                     'train/sum_late_mins': int(sum(late_mins)),
+                    'train/sum_distance': int(sum(distance)),
+                    'train/perc_dist': perc_dist,
+                    'train/perc_delay': perc_delay,
                 })
 
         # Log performance every 250 batches

@@ -13,7 +13,7 @@ def get_distances_matrix(locations):
 
 log = logging.getLogger(__name__)
 class VRPInstance():
-    def __init__(self, nb_customers, locations, original_locations, demand, capacity, time_window, service_time, max_time, late_coeff=100, use_cost_memory=True, schedule=None):
+    def __init__(self, nb_customers, locations, original_locations, demand, capacity, time_window, service_time, max_time, late_coeff=1, use_cost_memory=True, schedule=None):
         self.nb_customers = nb_customers
         self.locations = locations  # coordinates of all locations in the interval [0, 1]
         self.original_locations = original_locations  # original coordinates of locations (used to compute objective
@@ -32,7 +32,8 @@ class VRPInstance():
         # i_n being the index of the associated network input.
 
         self.schedule = schedule
-        self.speed_f = 1000
+        #self.speed_f = 1000
+        self.speed_f = 1
 
         self.nn_input_idx_to_tour = None  # After get_network_input() has been called this is a list where the
         # i-th element corresponds to the tour end represented by the i-th network input. If the network
@@ -106,13 +107,10 @@ class VRPInstance():
             else:
                 self.schedule.append([[0,0]])
 
-
-
     def get_costs_memory(self, round):
         """Return the cost of the current complete solution. Uses a memory to improve performance."""
         c = 0
         late_mins   = 0
-        #early_mins  = 0
         for route_idx, t in enumerate(self.solution):
             if t[0][0] != 0 or t[-1][0] != 0:
                 raise Exception("Incomplete solution.")
@@ -130,17 +128,13 @@ class VRPInstance():
                     c += self.costs_memory[from_idx, to_idx]
 
                 late_mins   += max(0, self.schedule[route_idx][i][1] - self.time_window[from_idx][1])
-                #early_mins  += max(0, self.time_window[from_idx][0] - self.schedule[route_idx][i][0])
-                
-            #c += self.early_coeff*early_mins + self.late_coeff*late_mins
-            c += self.late_coeff*late_mins
+                c += self.late_coeff*late_mins
         return c
 
     def get_costs(self, round):
         """Return the cost of the current complete solution."""
         c = 0
         late_mins   = 0
-        #early_mins  = 0
         for route_idx, t in enumerate(self.solution):
             if t[0][0] != 0 or t[-1][0] != 0:
                 raise Exception("Incomplete solution.")
@@ -152,17 +146,14 @@ class VRPInstance():
                 if round:
                     cc = np.round(cc)
                 c += cc
-                late_mins   += max(0, self.schedule[route_idx][i][1] - self.time_window[from_idx][1])
-                #early_mins  += max(0, self.time_window[from_idx][0] - self.schedule[route_idx][i][0])
-            #c += self.early_coeff*early_mins + self.late_coeff*late_mins
-            c += self.late_coeff*late_mins
+                late_mins = max(0, self.schedule[route_idx][i][1] - self.time_window[from_idx][1])
+                c += self.late_coeff*late_mins
         return c
 
     def get_costs_incomplete(self, round):
         """Return the cost of the current incomplete solution."""
         c = 0
         late_mins   = 0
-        #early_mins  = 0
         for route_idx, tour in enumerate(self.solution):
             if len(tour) <= 1:
                 continue
@@ -175,13 +166,11 @@ class VRPInstance():
                 if round:
                     cc = np.round(cc)
                 c += cc
-                late_mins   += max(0, self.schedule[route_idx][i][1] - self.time_window[from_idx][1])
-                #early_mins  += max(0, self.time_window[from_idx][0] - self.schedule[route_idx][i][0])
-            #c += self.early_coeff*early_mins + self.late_coeff*late_mins
-            c += self.late_coeff*late_mins
+                late_mins = max(0, self.schedule[route_idx][i][1] - self.time_window[from_idx][1])
+                c += self.late_coeff*late_mins
         return c
 
-    def get_total_distance(self, round):
+    def get_total_distance(self, round_dist=False):
         """Return the distance of the current complete solution."""
         c = 0
         for route_idx, t in enumerate(self.solution):
@@ -192,7 +181,7 @@ class VRPInstance():
                 to_idx = t[i + 1][0]
                 cc = np.sqrt((self.original_locations[t[i][0], 0] - self.original_locations[t[i + 1][0], 0]) ** 2
                              + (self.original_locations[t[i][0], 1] - self.original_locations[t[i + 1][0], 1]) ** 2)
-                if round:
+                if round_dist:
                     cc = np.round(cc)
                 c += cc
         return c
@@ -215,8 +204,6 @@ class VRPInstance():
                 sum_late_mins += delay
 
         return sum_late_mins 
-
-
 
     def destroy(self, customers_to_remove_idx):
         """Remove the customers with the given idx from their tours. This creates an incomplete solution."""
@@ -307,7 +294,6 @@ class VRPInstance():
 
     def destroy_tour_based(self, p, rng):
         """Tour based destroy. Remove all tours closest to a randomly selected point from a solution."""
-        raise NotImplementedError
         # Make a dictionary that maps customers to tours
         customer_to_tour = {}
         for i, tour in enumerate(self.solution[1:]):
@@ -340,24 +326,33 @@ class VRPInstance():
 
         # Create the new tours that all consist of only a single customer
         new_tours = []
+        new_schedules = []
         removed_customer_idx = []
         for i in tours_to_remove_idx:
             tour = self.solution[i]
             for e in tour[1:-1]:
-                if e[0] in removed_customer_idx:
-                    for new_tour in new_tours:
-                        if new_tour[0][0] == e[0]:
-                            new_tour[0][1] += e[1]
-                            break
-                else:
-                    new_tours.append([e])
-                    removed_customer_idx.append(e[0])
+                #if e[0] in removed_customer_idx:
+                #    for new_tour in new_tours:
+                #        if new_tour[0][0] == e[0]:
+                #            new_tour[0][1] += e[1]
+                #            break
+                #else:
+                #    new_tours.append([e])
+                #    time = int(max(0, self.time_window[e][0] - self.speed_f*self.distances[0][e]))
+                #    new_schedules.append([[time, time + self.service_time]]) 
+                #    removed_customer_idx.append(e[0])
+                new_tours.append([e])
+                time = int(max(0, self.time_window[e[0]][0] - self.speed_f*self.distances[0][e[0]]))
+                new_schedules.append([[time, time + self.service_time]]) 
+                removed_customer_idx.append(e[0])
 
         # Remove the tours that are marked for removal from the solution
         for index in sorted(tours_to_remove_idx, reverse=True):
             del self.solution[index]
+            del self.schedule[index]
 
         self.solution.extend(new_tours)  # Add new tours to solution
+        self.schedule.extend(new_schedules)
         self.incomplete_tours = new_tours
 
     def _get_incomplete_tours(self):
@@ -388,8 +383,9 @@ class VRPInstance():
         [:, 1] y-coordinates for all points
         [:, 2] start of time window for all points
         [:, 3] end of time window for all points
-        [:, 4] demand values for all points
-        [:, 5] state values for all points
+        #added later:
+        #[:, 4] demand values for all points
+        #[:, 5] state values for all points
         
         # old notation
         #[:, 0] x-coordinates for all points
@@ -633,7 +629,7 @@ class VRPInstance():
         solution_copy = self.get_solution_copy()
         schedule_copy = [[x[:] for x in tour_sched] for tour_sched in self.schedule]
         new_instance = VRPInstance(self.nb_customers, self.locations, self.original_locations, self.demand,
-                                   self.capacity, self.time_window, self.service_time, schedule=schedule_copy, max_time=self.max_time)
+                                   self.capacity, self.time_window, self.service_time, schedule=schedule_copy, max_time=self.max_time, late_coeff=self.late_coeff)
         new_instance.solution = solution_copy
         new_instance.costs_memory = self.costs_memory
 
@@ -647,10 +643,9 @@ class VRPInstance():
         origin_tour, origin_pos_in_tour = self.nn_input_idx_to_tour[origin_idx]
         tour_idx = self.solution.index(origin_tour)
         current_time = self.schedule[tour_idx][origin_pos_in_tour][1]  # should be scalar (int/float)
-        last_dim = distances.clone()
-
         #scale down current_time to 0,1
         current_time = current_time / self.max_time 
+        last_dim = distances.clone()
         last_dim[origin_idx] = float(current_time)
 
         return last_dim.unsqueeze(-1)  # (N, 1)
@@ -693,7 +688,9 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
     #log.info(f"\tin get_mask | last_dims = {last_dims}")
     current_times = last_dims[torch.arange(last_dims.size(0)), origin_nn_input_idx]
     #log.info(f"\tin get_mask | current_times = {current_times}")
-    arrival_times = last_dims[torch.arange(last_dims.size(0)), :] + current_times.unsqueeze(-1)
+    speed_f = [ins.speed_f for ins in instances]
+    speed_f = torch.tensor(speed_f, dtype=float, device=last_dims.device)
+    arrival_times = last_dims[torch.arange(last_dims.size(0)), :]*speed_f.unsqueeze(-1) + current_times.unsqueeze(-1)
     #log.info(f"\tin get_mask | arrival_times = {arrival_times}")
     tw_end = static_input[:,:,3]
     #log.info(f"\tin get_mask | tw_end = {tw_end}")

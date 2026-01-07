@@ -10,7 +10,7 @@ class InstanceBlueprint:
     """Describes the properties of a certain instance type (e.g. number of customers)."""
 
     def __init__(self, nb_customers, depot_position, customer_position, nb_customer_cluster, demand_type, demand_min,
-                 demand_max, capacity, grid_size, service_time, late_coeff, max_time):
+                 demand_max, capacity, grid_size, service_time, late_coeff, max_time, test_tw=False):
         self.nb_customers           = nb_customers
         self.depot_position         = depot_position
         self.customer_position      = customer_position
@@ -24,6 +24,7 @@ class InstanceBlueprint:
         #self.early_coeff           = early_coeff
         self.late_coeff             = late_coeff
         self.max_time               = max_time
+        self.test_tw                = test_tw
 
 
 def get_blueprint(blueprint_name):
@@ -97,11 +98,13 @@ def get_time_window(blueprint, rng):
     max_time = blueprint.max_time 
     min_time = 0
     avg_gap = max_time/10
-
-    centres         = rng.uniform(size=blueprint.nb_customers, low=min_time + avg_gap/2, high=max_time - avg_gap/2)
-    windows_widths  = rng.normal(loc=avg_gap, scale=np.sqrt(avg_gap), size=blueprint.nb_customers)
-    tw = [[max(c-w, min_time) , min(c+w, max_time)] for c,w in zip(centres, windows_widths)]
-    tw.insert(0, [min_time, max_time])
+    if blueprint.test_tw == False:
+        centres         = rng.uniform(size=blueprint.nb_customers, low=min_time + avg_gap/2, high=max_time - avg_gap/2)
+        windows_widths  = rng.normal(loc=avg_gap, scale=np.sqrt(avg_gap), size=blueprint.nb_customers)
+        tw = [[max(c-w, min_time) , min(c+w, max_time)] for c,w in zip(centres, windows_widths)]
+        tw.insert(0, [min_time, max_time])
+    else: # test instance where each customer has TW [0, max_time]
+        tw = [[min_time, max_time]]*(blueprint.nb_customers+1)
     
     return np.array(tw, dtype=int)
 
@@ -201,8 +204,9 @@ def get_max_time(tw):
     return int(tw[0, 1])
 
 def read_instance_vrp(path):
-    file = open(path, "r")
-    lines = [ll.strip() for ll in file]
+    with open(path, 'r') as file:
+        lines = [ll.strip() for ll in file]
+
     i = 0
     while i < len(lines):
         line = lines[i]
@@ -220,7 +224,8 @@ def read_instance_vrp(path):
             i = i + dimension
         elif line.startswith('TIME_WINDOW_SECTION'):
             time_window = np.loadtxt(lines[i + 1:i + 1 + dimension], dtype=int)
-
+        elif line.startswith('LATE_COEFF'):
+            late_coeff = float(line.split(':')[1])
         i += 1
 
     original_locations = locations[:, 1:]
@@ -238,7 +243,8 @@ def read_instance_vrp(path):
         capacity            = capacity,
         time_window         = time_window,
         service_time        = service_time,
-        max_time            = max_time)
+        max_time            = max_time,
+        late_coeff          = late_coeff)
         
     return instance
 

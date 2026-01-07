@@ -21,6 +21,7 @@ def lns_single_seach_job(args):
         instance = read_instance(instance_path, pkl_instance_id)
 
         T_min = config.lns_t_min
+        rng = np.random.default_rng(id)
 
         # Repeat until the process is terminated
         while True:
@@ -53,6 +54,7 @@ def lns_single_seach_job(args):
 
                 # Destroy instances
                 search.destroy_instances(rng, instance_copies, destroy_procedure, p_destruction)
+
                 # Repair instances
                 for i in range(int(len(instance_copies) / config.lns_batch_size)):
                     with torch.no_grad():
@@ -104,7 +106,10 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
     if plot_sol: # plot initial solution
         sol = vrp_to_plot_solution(instance)
         data = pyvrp_read(instance_path) 
-        plot_solution(sol, data, name='initial_sol', path='/home/pettena/NLNSTW/temp/',plot_title=f'Final sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
+        if config.device == 'cuda':
+            plot_solution(sol, data, name='initial_sol', path='/home/pettena/NLNSTW/temp/', plot_title=f'Initial sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
+        else:
+            plot_solution(sol, data, name='initial_sol', path='/home/pettepiero/tirocinio/NLNS_cvrptw/temp/', plot_title=f'Initial sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
 
     start_time = time.time()
     incumbent_costs = instance.get_costs(config.round_distances)
@@ -143,9 +148,12 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
     if plot_sol: # plot final solution
         sol = vrp_to_plot_solution(instance)
         data = pyvrp_read(instance_path) 
-        plot_solution(sol, data, name='final_sol', path='/home/pettena/NLNSTW/temp/',plot_title=f'Initial sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
-    plot_instance(instance, filename=f"./temp/final_sol_single_mode.png")
-    print(f"Plotted solution to ./temp/final_sol_single_mode.png")
+        if config.device == 'cuda':
+            plot_solution(sol, data, name='final_sol', path='/home/pettena/NLNSTW/temp/',plot_title=f'Final sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
+        else:
+            plot_solution(sol, data, name='final_sol', path='/home/pettepiero/tirocinio/NLNS_cvrptw/temp/',plot_title=f'Final sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
+    #plot_instance(instance, filename=f"./temp/final_sol_single_mode.png")
+    #print(f"Plotted solution to ./temp/final_sol_single_mode.png")
 
     print(f"Solution:")
     for el in instance.solution:
@@ -155,3 +163,4 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
         print(el)
 
     return instance.get_costs(config.round_distances), duration, instance.get_total_distance(config.round_distances), instance.get_sum_late_mins()
+    #return instance.get_total_distance(config.round_distances), duration, instance.get_total_distance(config.round_distances), instance.get_sum_late_mins()

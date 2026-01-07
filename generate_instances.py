@@ -36,7 +36,7 @@ def write_vrplib_xe(filename, loc, demand, capacity, grid_size, name="problem"):
         f.write("-1\n")
         f.write("EOF\n")
 
-def write_vrplib_tw(filename, loc, demand, capacity, grid_size, time_window, service_time, name="problem"):
+def write_vrplib_tw(filename, loc, demand, capacity, grid_size, time_window, service_time, late_coeff, name="problem"):
     assert grid_size == 1000 or grid_size == 1000000
 
     with open(filename, 'w+') as f:
@@ -48,7 +48,8 @@ def write_vrplib_tw(filename, loc, demand, capacity, grid_size, time_window, ser
                 ("DIMENSION", len(loc)),
                 ("EDGE_WEIGHT_TYPE", "EUC_2D"),
                 ("CAPACITY", capacity),
-                ("SERVICE_TIME", service_time)
+                ("SERVICE_TIME", service_time),
+                ("LATE_COEFF", late_coeff)
             )
         ]))
         f.write("\n")
@@ -89,12 +90,13 @@ if __name__ == "__main__":
     assert config.instance_blueprint.startswith("TW_"), 'Only TW are supported'
 
     np.random.seed(config.seed)
+    rng = np.random.default_rng(config.seed)
     if not os.path.exists(config.data_dir):
         os.makedirs(config.data_dir)
     blueprint = get_blueprint(config.instance_blueprint)
 
     for i in range(config.dataset_size):
-        instance = generate_Instance(blueprint, False)
+        instance = generate_Instance(blueprint, False, rng)
 
         name = "{}_seed_{}_id_{}".format(config.instance_blueprint, config.seed, i)
         filename = os.path.join(config.data_dir, name + ".vrp")
@@ -106,5 +108,6 @@ if __name__ == "__main__":
                 grid_size       = blueprint.grid_size, 
                 time_window     = instance.time_window, 
                 service_time    = instance.service_time,
+                late_coeff      = instance.late_coeff,
                 name            = name
                 )
