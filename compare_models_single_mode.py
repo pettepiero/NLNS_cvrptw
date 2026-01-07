@@ -219,7 +219,7 @@ cmd_nlns = [
     "--instance_path",          path,
     "--lns_batch_size",         "1000",
     "--lns_timelimit",          str(args.nlns_max_time_per_instance),
-    "--device",                 args.device,
+    "--device",                 str(args.device),
     "--output_path",            output_path,
     "--lns_t_max",              str(args.lns_t_max),
     "--lns_t_min",              str(args.lns_t_min),

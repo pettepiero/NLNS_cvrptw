@@ -106,7 +106,7 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
     if plot_sol: # plot initial solution
         sol = vrp_to_plot_solution(instance)
         data = pyvrp_read(instance_path) 
-        if config.device == 'cuda':
+        if str(config.device) == 'cuda':
             plot_solution(sol, data, name='initial_sol', path='/home/pettena/NLNSTW/temp/', plot_title=f'Initial sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
         else:
             plot_solution(sol, data, name='initial_sol', path='/home/pettepiero/tirocinio/NLNS_cvrptw/temp/', plot_title=f'Initial sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
@@ -148,7 +148,7 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
     if plot_sol: # plot final solution
         sol = vrp_to_plot_solution(instance)
         data = pyvrp_read(instance_path) 
-        if config.device == 'cuda':
+        if str(config.device) == 'cuda':
             plot_solution(sol, data, name='final_sol', path='/home/pettena/NLNSTW/temp/',plot_title=f'Final sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
         else:
             plot_solution(sol, data, name='final_sol', path='/home/pettepiero/tirocinio/NLNS_cvrptw/temp/',plot_title=f'Final sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
