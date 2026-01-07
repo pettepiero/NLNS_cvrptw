@@ -6,4 +6,4 @@ figures/
 logs/
 TW_*
 wandb
-
+runs/
