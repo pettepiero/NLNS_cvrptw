@@ -115,7 +115,7 @@ def train_nlns(actor, critic, run_id, config):
         perc_delay = 1 - perc_dist
 
         # Reward/Advantage computation
-        reward = np.array(costs_repaired) - np.array(costs_destroyed)
+        reward = (np.array(costs_repaired) - np.array(costs_destroyed))/ np.array(costs_destroyed)
         reward = torch.from_numpy(reward).float().to(config.device)
         advantage = reward - critic_est
 

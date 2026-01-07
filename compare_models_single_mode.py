@@ -8,6 +8,7 @@ import datetime
 import numpy as np
 import logging
 import wandb
+import shutil
 
 def check_valid_dir(directory: Path) -> bool:
     """
@@ -15,12 +16,13 @@ def check_valid_dir(directory: Path) -> bool:
     ending with '.vrp'
     """
     assert os.path.exists(directory), f"Provided path {directory} doesn't exist"
-    assert os.path.isdir(directory), f"Provided path {directory} is not a folder"
-    inst_list = os.listdir(directory)
-    inst_list = [ins for ins in inst_list if os.path.splitext(ins)[1] == '.vrp']
-    assert len(inst_list) > 0, f"Provided path {len(inst_list)} doesn't contain files with '.vrp' extension."
+    #assert os.path.isdir(directory), f"Provided path {directory} is not a folder"
+    #inst_list = os.listdir(directory)
+    #inst_list = [ins for ins in inst_list if os.path.splitext(ins)[1] == '.vrp']
+    #assert len(inst_list) > 0, f"Provided path {len(inst_list)} doesn't contain files with '.vrp' extension."
 
-    return len(inst_list) > 0
+    #return len(inst_list) > 0
+    return True
 
 def get_dir_filenames(directory: Path) -> list:
     if check_valid_dir(directory):
@@ -36,7 +38,7 @@ def read_dir(directory: Path, max_num_instances: int) -> Path:
     inst_dir = get_dir_filenames(directory)
     if max_num_instances is not None:
         n_instances = min(max_num_instances, len(inst_list))
-        inst_list = random.shuffle(inst_list)[:n_instances]
+        inst_list = inst_list[:n_instances]
     else:
         n_instances = len(inst_list)
     logging.debug(f"DEBUG: Selecting {n_instances}/{len(inst_list)} random instances from provided directory.") 
@@ -84,7 +86,7 @@ ap.add_argument('--max_num_instances', '-n', type=int, default=None, help="Maxim
 ap.add_argument('--nlns_model', type=str, default=None, help="NLNS model to test. Provide run number, e.g. 'run_17.9.2025_16354', or full model path if --full_model_path is set to true. See list_trained_models.csv for a list of trained NLNS models.", required=True)
 ap.add_argument('--full_model_path', default=False, action='store_true', help="Set to True if nlns_model is the full model path")
 ap.add_argument('--device', default='cuda', choices=['cuda', 'cpu'], help="Device to run on.")
-
+ap.add_argument('--pointer_hidden_size', default=128, help="Hidden size of pointer for NLNS model")
 # LNS single instance search parameters
 ap.add_argument('--lns_t_max', default=1000, type=int, help="Maximum reheating temperature for Simulated Annealing of single instance search")
 ap.add_argument('--lns_t_min', default=10, type=int, help="Minimum reheating temperature for Simulated Annealing of single instance search")
@@ -146,6 +148,35 @@ elif args.mode == 'read_pkl':
     raise NotImplementedError
     pkl_file, num_instances = read_pkl(args.path, args.max_num_instances)
 
+temp_path = './temp_instances'
+# if is dir then check max_num_instances
+if os.path.isdir(args.path):
+    inst_list = get_dir_filenames(args.path)
+    inst_list = [os.path.join(args.path, ins) for ins in inst_list]
+    if args.max_num_instances is not None:
+        if args.max_num_instances != len(inst_list):
+            n_instances = min(args.max_num_instances, len(inst_list))
+            inst_list = inst_list[:n_instances]
+            if os.path.isdir(temp_path):
+                shutil.rmtree(temp_path)
+            os.makedirs(temp_path)
+            for ins in inst_list:
+                name = os.path.basename(ins)
+                new_path = os.path.join(temp_path, name) 
+                shutil.copyfile(ins, new_path)
+            path = temp_path
+        else:
+            n_instances = len(inst_list)
+            path = args.path
+    else:
+        n_instances = len(inst_list)
+        path = args.path
+# if is file then do just this file
+else:
+    path = args.path
+
+
+
 print(f"\n ************************************************** \n")
 print(f"EXECUTING NLNS models...")
 if not args.full_model_path:
@@ -185,7 +216,7 @@ cmd_nlns = [
     "python3",                  "main.py",
     "--mode",                   "eval_single",
     "--model_path",             full_model_path,
-    "--instance_path",          args.path,
+    "--instance_path",          path,
     "--lns_batch_size",         "1000",
     "--lns_timelimit",          str(args.nlns_max_time_per_instance),
     "--device",                 args.device,
@@ -196,6 +227,7 @@ cmd_nlns = [
     "--lns_Z_param",            str(args.lns_Z_param),
     "--lns_nb_cpus",            str(args.lns_nb_cpus),
     "--plot_sol",               str(args.plot_sol),
+    "--pointer_hidden_size",    str(args.pointer_hidden_size),
     ]
 
 logging.debug(f"NLNS command: {cmd_nlns}")
@@ -223,16 +255,22 @@ if not found_pyvrp_file:
     # if not available, call model
     logging.debug("Running PyVRP model...\n")
 
-    instances = [f for f in os.listdir(args.path) if os.path.isfile(os.path.join(args.path, f))]
+    if os.path.isdir(path):
+        instances = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+    else:
+        instances = [path]
 
     if len(instances) > 1:
         mode = 'eval_batch'
         path_cmd = '--dir_path'
-        path = args.path
+        path = path
     else:
         mode = 'eval_single'
         path_cmd = '--instance_path'
-        path = os.path.join(args.path, os.listdir(args.path)[0])
+        if os.path.isdir(path):
+            path = os.path.join(path, os.listdir(path)[0])
+        else:
+            path = path
     
     cmd_pyvrp = [
         "python3",          "pyvrp_model.py",
@@ -310,3 +348,7 @@ logging.debug(f"\n\nAverage NLNS dists gap: {avg_nlns_dists_gap}")
 print(f"\n\nAverage NLNS dists gap: {avg_nlns_dists_gap}")
 
 print(f"Saved log of execution to {log_filename}")
+
+if os.path.isdir(temp_path):
+    shutil.rmtree(temp_path)
+    print(f"Removed {temp_path}")

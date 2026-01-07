@@ -32,7 +32,8 @@ class VRPInstance():
         # i_n being the index of the associated network input.
 
         self.schedule = schedule
-        self.speed_f = 1000
+        #self.speed_f = 1000
+        self.speed_f = 1
 
         self.nn_input_idx_to_tour = None  # After get_network_input() has been called this is a list where the
         # i-th element corresponds to the tour end represented by the i-th network input. If the network
@@ -383,8 +384,9 @@ class VRPInstance():
         [:, 1] y-coordinates for all points
         [:, 2] start of time window for all points
         [:, 3] end of time window for all points
-        [:, 4] demand values for all points
-        [:, 5] state values for all points
+        #added later:
+        #[:, 4] demand values for all points
+        #[:, 5] state values for all points
         
         # old notation
         #[:, 0] x-coordinates for all points
@@ -642,10 +644,9 @@ class VRPInstance():
         origin_tour, origin_pos_in_tour = self.nn_input_idx_to_tour[origin_idx]
         tour_idx = self.solution.index(origin_tour)
         current_time = self.schedule[tour_idx][origin_pos_in_tour][1]  # should be scalar (int/float)
-        last_dim = distances.clone()
-
         #scale down current_time to 0,1
         current_time = current_time / self.max_time 
+        last_dim = distances.clone()
         last_dim[origin_idx] = float(current_time)
 
         return last_dim.unsqueeze(-1)  # (N, 1)
@@ -688,7 +689,9 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
     #log.info(f"\tin get_mask | last_dims = {last_dims}")
     current_times = last_dims[torch.arange(last_dims.size(0)), origin_nn_input_idx]
     #log.info(f"\tin get_mask | current_times = {current_times}")
-    arrival_times = last_dims[torch.arange(last_dims.size(0)), :] + current_times.unsqueeze(-1)
+    speed_f = [ins.speed_f for ins in instances]
+    speed_f = torch.tensor(speed_f, dtype=float, device=last_dims.device)
+    arrival_times = last_dims[torch.arange(last_dims.size(0)), :]*speed_f.unsqueeze(-1) + current_times.unsqueeze(-1)
     #log.info(f"\tin get_mask | arrival_times = {arrival_times}")
     tw_end = static_input[:,:,3]
     #log.info(f"\tin get_mask | tw_end = {tw_end}")
