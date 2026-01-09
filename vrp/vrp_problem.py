@@ -59,7 +59,8 @@ class VRPInstance():
 
     def create_initial_solution(self):
         """Create an initial solution for this instance using a greedy heuristic."""
-        self.solution = [[[0, 0, 0]], [[0, 0, 0]]]
+        #self.solution = [[[0, 0, 0]], [[0, 0, 0]]]
+        self.solution = [[[0, 0, 0]]]
         cur_load = self.capacity
         visited_mask = np.array([True] * (self.nb_customers + 1))
         visited_mask[0] = False
