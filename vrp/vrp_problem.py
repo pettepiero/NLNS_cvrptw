@@ -161,9 +161,9 @@ class VRPInstance():
             for i in range(0, len(tour) - 1):
                 from_idx = tour[i][0]
                 to_idx = tour[i + 1][0]
-                cc = np.sqrt((self.original_locations[tour[i][0], 0] - self.original_locations[tour[i + 1][0], 0]) ** 2
-                             + (self.original_locations[tour[i][0], 1] - self.original_locations[
-                    tour[i + 1][0], 1]) ** 2)
+                cc = np.sqrt((self.original_locations[from_idx, 0] - self.original_locations[to_idx, 0]) ** 2
+                             + (self.original_locations[from_idx, 1] - self.original_locations[
+                    to_idx, 1]) ** 2)
                 if round:
                     cc = np.round(cc)
                 c += cc
@@ -274,7 +274,8 @@ class VRPInstance():
 
         last_cust = tour[-1][0]
         travel_time = self.speed_f * self.distances[current_cust][last_cust]
-        schedule.append([int(depart_time_current + travel_time), self.max_time]) # set max_time to 1000
+        #schedule.append([int(depart_time_current + travel_time), self.max_time]) # set max_time to 1000
+        schedule.append([int(depart_time_current + travel_time), int(depart_time_current + travel_time + self.service_time)]) # set max_time to 1000
         assert len(tour) == len(schedule)
         return schedule
 
@@ -638,11 +639,11 @@ class VRPInstance():
 
     def get_last_dim(self, static_input, origin_idx):
         # (N, 2) coords in NN-input space
-        coords = static_input[:, :2]
-        origin_xy = coords[origin_idx]  # (2,)
-        distances = torch.sqrt(((coords - origin_xy) ** 2).sum(dim=-1))  # (N,)
+        coords      = static_input[:, :2]
+        origin_xy   = coords[origin_idx]  # (2,)
+        distances   = torch.sqrt(((coords - origin_xy) ** 2).sum(dim=-1))  # (N,)
         origin_tour, origin_pos_in_tour = self.nn_input_idx_to_tour[origin_idx]
-        tour_idx = self.solution.index(origin_tour)
+        tour_idx    = self.solution.index(origin_tour)
         current_time = self.schedule[tour_idx][origin_pos_in_tour][1]  # should be scalar (int/float)
         #scale down current_time to 0,1
         current_time = current_time / self.max_time 
@@ -705,7 +706,7 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
     #log.info(f"\tin get_mask | mask = {mask}")
 
     for i in range(batch_size):
-        idx_from = origin_nn_input_idx[i]
+        idx_from = origin_nn_input_idx[i].item()
         origin_tour = instances[i].nn_input_idx_to_tour[idx_from][0]
         origin_pos = instances[i].nn_input_idx_to_tour[idx_from][1]
 
