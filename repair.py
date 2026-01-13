@@ -16,11 +16,9 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
     instance_repaired = np.zeros(batch_size)
 
     origin_idx = np.zeros((batch_size), dtype=int)
-    last_dim = torch.zeros((batch_size, N, 1), dtype=float, device=static_input.device)
+    last_dim = torch.zeros((batch_size, N, 2), dtype=static_input.dtype, device=static_input.device)
 
-    iter = 0
     while not instance_repaired.all():
-        iter += 1
         # if origin_idx == 0 select the next tour end that serves as the origin at random
         for i, instance in enumerate(instances):
             if origin_idx[i] == 0 and not instance_repaired[i]:
@@ -41,13 +39,6 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
 
         origin_static_input = static_input[torch.arange(batch_size), origin_idx]
         origin_dynamic_input_float = dynamic_input_float[torch.arange(batch_size), origin_idx]
-        #log.info(f"In repair: static_input:")
-        #for el in static_input:
-        #    log.info(el)
-        #log.info(f"In repair: dynamic_input_float:")
-        #for el in dynamic_input_float:
-        #    log.info(el)
-
 
         # Forward pass. Returns a probability distribution over the point (tour end or depot) that origin should be connected to
         probs = actor.forward(static_input, dynamic_input_float, origin_static_input, origin_dynamic_input_float, mask)

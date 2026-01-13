@@ -26,6 +26,7 @@ def get_config():
     parser.add_argument('--instance_blueprint', default="ALTR_20", type=str)
     parser.add_argument('--valid_size', default=500, type=int)
     parser.add_argument('--pretrained_model_path', default=None, type=str)
+    parser.add_argument('--scale_rewards', default=False, action='store_true')
 
     # Search
     parser.add_argument('--model_path', default=None, type=str)

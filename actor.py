@@ -77,9 +77,9 @@ class VrpActorModel(nn.Module):
     def __init__(self, device, hidden_size=128):
         super(VrpActorModel, self).__init__()
 
-        self.all_embed = Encoder(7, hidden_size)
+        self.all_embed = Encoder(8, hidden_size)
         self.pointer = Pointer(device, hidden_size)
-        self.origin_embed = Encoder(7, hidden_size)
+        self.origin_embed = Encoder(8, hidden_size)
 
         for p in self.parameters():
             if len(p.shape) > 1:

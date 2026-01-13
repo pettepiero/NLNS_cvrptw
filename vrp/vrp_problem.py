@@ -646,11 +646,10 @@ class VRPInstance():
         tour_idx    = self.solution.index(origin_tour)
         current_time = self.schedule[tour_idx][origin_pos_in_tour][1]  # should be scalar (int/float)
         #scale down current_time to 0,1
-        current_time = current_time / self.max_time 
-        last_dim = distances.clone()
-        last_dim[origin_idx] = float(current_time)
+        current_time_norm = current_time / self.max_time 
+        time_channel = torch.full_like(distances, current_time_norm)
 
-        return last_dim.unsqueeze(-1)  # (N, 1)
+        return torch.stack([distances, time_channel], dim=-1)
     
 
     def _check_alignment(self, where=""):
@@ -682,28 +681,23 @@ class VRPInstance():
 
 def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config, capacity):
     """ Returns a mask for the current nn_input"""
+    device = dynamic_input.device
+    dtype = dynamic_input.dtype
     batch_size = origin_nn_input_idx.shape[0]
-    #log.info(f"\n\tin get_mask | origin_nn_input_idx = {origin_nn_input_idx}")
-    #log.info(f"\tin get_mask | batch_size = {batch_size}")
 
-    last_dims = dynamic_input[:, :, -1]
-    #log.info(f"\tin get_mask | last_dims = {last_dims}")
-    current_times = last_dims[torch.arange(last_dims.size(0)), origin_nn_input_idx]
-    #log.info(f"\tin get_mask | current_times = {current_times}")
-    speed_f = [ins.speed_f for ins in instances]
-    speed_f = torch.tensor(speed_f, dtype=float, device=last_dims.device)
-    arrival_times = last_dims[torch.arange(last_dims.size(0)), :]*speed_f.unsqueeze(-1) + current_times.unsqueeze(-1)
-    #log.info(f"\tin get_mask | arrival_times = {arrival_times}")
-    tw_end = static_input[:,:,3]
-    #log.info(f"\tin get_mask | tw_end = {tw_end}")
+    dist_channel = dynamic_input[:, :, -2]
+    time_channel = dynamic_input[:, :, -1]
+    speed_f = torch.tensor([ins.speed_f for ins in instances], device=device, dtype=dtype)
+    max_time = torch.tensor([ins.max_time for ins in instances], device=device, dtype=dtype)
 
-    time_feasible = (arrival_times <= tw_end).cpu().numpy().astype(int)
-    #log.info(f"\tin get_mask | time_feasible = {time_feasible}")
+    travel_time_norm = (dist_channel * speed_f.unsqueeze(-1))/max_time.unsqueeze(-1)
+    arrival_time_norm = time_channel + travel_time_norm
 
-    # Start with all used input positions
-    mask = (dynamic_input[:, :, 1] != 0).cpu().long().numpy()
-    mask = mask * time_feasible
-    #log.info(f"\tin get_mask | mask = {mask}")
+    tw_end_norm = static_input[:,:,3]
+    time_feasible = arrival_time_norm <= tw_end_norm
+
+    mask = (dynamic_input[:, :, 1] != 0)
+    mask = mask & time_feasible
 
     for i in range(batch_size):
         idx_from = origin_nn_input_idx[i].item()
@@ -717,35 +711,29 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
         else:
             idx_same_tour = origin_tour[0][2]
 
-        mask[i, idx_same_tour] = 0
+        mask[i, idx_same_tour] = False
 
         # Do not allow origin location = destination location
-        mask[i, idx_from] = 0
+        mask[i, idx_from] = False
 
-    mask = torch.from_numpy(mask)
-    #log.info(f"\tin get_mask | mask = {mask}")
-
-    origin_tour_demands = dynamic_input[torch.arange(batch_size), origin_nn_input_idx, 0]
-    #log.info(f"\tin get_mask | origin_tour_demands: {origin_tour_demands}")
+    origin_tour_demands = dynamic_input[torch.arange(batch_size, device=device), origin_nn_input_idx, 0]
     combined_demand = origin_tour_demands.unsqueeze(1).expand(batch_size, dynamic_input.shape[1]) + dynamic_input[:, :,0]
-    #log.info(f"\tin get_mask | combined_demand: {combined_demand}")
 
     if config.split_delivery:
         raise NotImplementedError #not implemented for cvrptw
-        multiple_customer_tour = (dynamic_input[torch.arange(batch_size), origin_nn_input_idx, 1] > 1).unsqueeze(1).expand(
+        multiple_customer_tour = (dynamic_input[torch.arange(batch_size, device=device), origin_nn_input_idx, 1] > 1).unsqueeze(1).expand(
             batch_size, dynamic_input.shape[1])
 
         # If the origin tour consists of multiple customers mask all tours with multiple customers where
         # the combined demand is > 1
-        mask[multiple_customer_tour & (combined_demand > capacity) & (dynamic_input[:, :, 1] > 1)] = 0
+        mask[multiple_customer_tour & (combined_demand > capacity) & (dynamic_input[:, :, 1] > 1)] = False
 
         # If the origin tour consists of a single customer mask all tours with demand is >= 1
-        mask[(~multiple_customer_tour) & (dynamic_input[:, :, 0] >= capacity)] = 0
+        mask[(~multiple_customer_tour) & (dynamic_input[:, :, 0] >= capacity)] = False
     else:
-        mask[combined_demand > capacity] = 0
+        mask[combined_demand > capacity] = False
 
-    mask[:, 0] = 1  # Always allow to go to the depot
-    #log.info(f"\tin get_mask | mask = {mask}")
+    mask[:, 0] = True  # Always allow to go to the depot
 
     return mask
 
