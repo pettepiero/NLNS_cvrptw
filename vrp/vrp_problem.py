@@ -33,7 +33,7 @@ class VRPInstance():
 
         self.schedule = schedule
         #self.speed_f = 1000
-        self.speed_f = 1
+        self.speed_f = 1000
 
         self.nn_input_idx_to_tour = None  # After get_network_input() has been called this is a list where the
         # i-th element corresponds to the tour end represented by the i-th network input. If the network
@@ -77,8 +77,12 @@ class VRPInstance():
                 custs_indices = np.arange(self.nb_customers +1)
                 travel_times = self.speed_f * self.distances[current_node][custs_indices]
                 arrival_times = t + travel_times
-                in_time = (arrival_times <= self.time_window[:, 1])
-                temp_mask = visited_mask & in_time
+                start_service_times = np.maximum(arrival_times, self.time_window[:, 0])
+                in_time = (start_service_times <= self.time_window[:, 1])
+                # add that the model can return to depot too!
+                times_to_depot = self.speed_f * self.distances[:][0]
+                in_time_to_return = (start_service_times + self.service_time + times_to_depot <= self.time_window[0, 1])
+                temp_mask = visited_mask & in_time & in_time_to_return
 
                 if not temp_mask.any():
                     break
@@ -186,6 +190,16 @@ class VRPInstance():
                     cc = np.round(cc)
                 c += cc
         return c
+    def get_late_mins_tour(self, tour, schedule):
+        late_mins = 0
+        for i in range(len(tour)-1):
+            cust = tour[i][0] 
+            arrival = schedule[i][0]
+            tw_start, tw_end = self.time_window[cust]
+            start_service = max(arrival, tw_start)
+            delay = max(0, start_service - tw_end)
+            late_mins += delay
+        return late_mins
 
     def get_sum_late_mins(self):
         """Returns the sum of late mins according to computed schedule"""
@@ -198,12 +212,7 @@ class VRPInstance():
                 schedule.append([[0, 0]])
 
         for t, s in zip(self.solution, schedule):
-            for i in range(len(t)-1):
-                cust = t[i][0] 
-                tw_end = self.time_window[cust][1]
-                delay = max(0, s[i][1] - tw_end)
-                sum_late_mins += delay
-
+            sum_late_mins += self.get_late_mins_tour(t, s)
         return sum_late_mins 
 
     def destroy(self, customers_to_remove_idx):
@@ -226,7 +235,9 @@ class VRPInstance():
                     if i > last_split_idx and i > 1:
                         new_tour_pre = tour[last_split_idx:i]
                         st.append(new_tour_pre)
-                        sc.append(self.schedule[tour_idx][last_split_idx:i])
+                        schedule = self.compute_tour_schedule(new_tour_pre)
+                        sc.append(schedule)
+                        #sc.append(self.schedule[tour_idx][last_split_idx:i])
                         self.incomplete_tours.append(new_tour_pre)
 
                     # The second consisting of only the customer to be removed
@@ -235,8 +246,9 @@ class VRPInstance():
                         demand = int(self.demand[customer_idx])
                         new_tour = [[customer_idx, demand, None]]
                         st.append(new_tour)
-                        time = int(max(0, self.time_window[customer_idx][0] - self.speed_f*self.distances[0][customer_idx]))
-                        sc.append([[time, time + self.service_time]]) 
+                        #time = int(max(0, self.time_window[customer_idx][0] - self.speed_f*self.distances[0][customer_idx]))
+                        #sc.append([[time, time + self.service_time]]) 
+                        sc.append([self.time_window[customer_idx].tolist()])
                         self.incomplete_tours.append(new_tour)
                         removed_customer_idx.append(customer_idx)
                     last_split_idx = i + 1
@@ -256,28 +268,84 @@ class VRPInstance():
         self.schedule = sc
 
     def compute_tour_schedule(self, tour):
-        schedule = []
-        depart_time_current = 0
-        current_cust = None 
-        for i in range(len(tour) -1):
-            current_cust = tour[i][0]
-            next_cust = tour[i+1][0]
-            travel_time = self.speed_f * self.distances[current_cust][next_cust]
-            arrival = depart_time_current + travel_time
+        if len(tour) == 1:
+            cust = tour[0][0]
+            schedule = [[self.time_window[cust][0], self.time_window[cust][1]]]
+            assert len(tour) == len(schedule)
+            return schedule
+        else:
+            schedule = []
+            current_cust = None
+            arrival = None
+            for i in range(len(tour) -1):
+                service_time = self.service_time
+                start = None
+                end = None
+                current_cust = tour[i][0]
+                next_cust = tour[i+1][0]
+                travel_time = self.speed_f * self.distances[current_cust][next_cust]
+                tw_open, tw_close = self.time_window[current_cust]
+                nc_tw_open, nc_tw_close = self.time_window[next_cust]
+                if i == 0:
+                    if current_cust == 0:
+                        start = 0 #for depot start from 0
+                        service_time = 0
+                    elif current_cust != 0:
+                        start = tw_open
+                else:
+                    start = max(arrival, tw_open)
+                
+                # can I arrive at nc_tw_open exactly? If yes, wait until right time 
+                # to depart in order to arrive at nc_tw_open
+                if nc_tw_open - travel_time >= start + service_time:
+                    #end = nc_tw_open - travel_time + service_time
+                    end = start + service_time
+                elif start + service_time + travel_time < nc_tw_close:
+                    end = start + service_time #leave as soon as possible
+                else:
+                    raise ValueError 
+                schedule.append([int(start), int(end)])
+                arrival = end + travel_time
 
-            tw_open, tw_close = self.time_window[next_cust]
-            start_service = max(arrival, tw_open)
+            last_cust = tour[-1][0]
+            tw_open, tw_close = self.time_window[last_cust]
+            travel_time = self.speed_f * self.distances[current_cust][last_cust]
+            start = max(arrival, tw_open)
+            if last_cust == 0:
+                end = start 
+            else:
+                end = start + self.service_time
+            schedule.append([int(start), int(end)]) 
 
-            depart = start_service + self.service_time
-            schedule.append([int(arrival), int(depart)])
-            depart_time_current = depart
+            assert len(tour) == len(schedule)
+            return schedule
 
-        last_cust = tour[-1][0]
-        travel_time = self.speed_f * self.distances[current_cust][last_cust]
-        #schedule.append([int(depart_time_current + travel_time), self.max_time]) # set max_time to 1000
-        schedule.append([int(depart_time_current + travel_time), int(depart_time_current + travel_time + self.service_time)]) # set max_time to 1000
-        assert len(tour) == len(schedule)
-        return schedule
+
+    #def compute_tour_schedule(self, tour):
+    #    schedule = []
+    #    depart_time_current = 0
+    #    current_cust = None 
+    #    for i in range(len(tour) -1):
+    #        current_cust = tour[i][0]
+    #        next_cust = tour[i+1][0]
+    #        travel_time = self.speed_f * self.distances[current_cust][next_cust]
+    #        arrival = depart_time_current + travel_time
+    #        if i == 0 and current_cust == 0:
+    #            start_service = 0
+    #        else:
+    #            tw_open, tw_close = self.time_window[next_cust]
+    #            start_service = max(arrival, tw_open)
+
+    #        depart = start_service + self.service_time
+    #        schedule.append([int(arrival), int(depart)])
+    #        depart_time_current = depart
+
+    #    last_cust = tour[-1][0]
+    #    travel_time = self.speed_f * self.distances[current_cust][last_cust]
+    #    #schedule.append([int(depart_time_current + travel_time), self.max_time]) # set max_time to 1000
+    #    schedule.append([int(depart_time_current + travel_time), int(depart_time_current + travel_time + self.service_time)]) # set max_time to 1000
+    #    assert len(tour) == len(schedule)
+    #    return schedule
 
     def destroy_random(self, p, rng):
         """Random destroy. Select customers that should be removed at random and remove them from tours."""
@@ -730,7 +798,7 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
 
         # If the origin tour consists of a single customer mask all tours with demand is >= 1
         mask[(~multiple_customer_tour) & (dynamic_input[:, :, 0] >= capacity)] = False
-    else:
+    else:origin_nn_input_idx,
         mask[combined_demand > capacity] = False
 
     mask[:, 0] = True  # Always allow to go to the depot
