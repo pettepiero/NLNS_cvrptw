@@ -40,6 +40,7 @@ class VRPInstance():
         # points to an input, this allows us to find out, which tour end that input corresponds to.
         self.open_nn_input_idx = None  # List of idx of those nn_inputs that have not been visited
         self.incomplete_tours = None  # List of incomplete tours of self.solution
+        self.incomplete_schedules = None  # List of incomplete schedules of self.schedule
         if use_cost_memory:
             self.costs_memory = np.full((nb_customers + 1, nb_customers + 1), np.nan, dtype="float")
         else:
@@ -218,6 +219,7 @@ class VRPInstance():
     def destroy(self, customers_to_remove_idx):
         """Remove the customers with the given idx from their tours. This creates an incomplete solution."""
         self.incomplete_tours = []
+        self.incomplete_schedules = []
         st = []  # solution tours
         sc = []  # solution schedule
 
@@ -239,6 +241,7 @@ class VRPInstance():
                         sc.append(schedule)
                         #sc.append(self.schedule[tour_idx][last_split_idx:i])
                         self.incomplete_tours.append(new_tour_pre)
+                        self.incomplete_schedules.append(schedule)
 
                     # The second consisting of only the customer to be removed
                     if customer_idx not in removed_customer_idx:  # make sure the customer has not already been
@@ -250,6 +253,8 @@ class VRPInstance():
                         #sc.append([[time, time + self.service_time]]) 
                         sc.append([self.time_window[customer_idx].tolist()])
                         self.incomplete_tours.append(new_tour)
+                        schedule = self.compute_tour_schedule(new_tour)
+                        self.incomplete_schedules.append(schedule)
                         removed_customer_idx.append(customer_idx)
                     last_split_idx = i + 1
 
@@ -260,6 +265,8 @@ class VRPInstance():
                     st.append(new_tour_post)
                     sc.append(self.compute_tour_schedule(new_tour_post))
                     self.incomplete_tours.append(new_tour_post)
+                    schedule = self.compute_tour_schedule(new_tour_post)
+                    self.incomplete_schedules.append(schedule)
             else:  # add unchanged tour
                 st.append(tour)
                 sc.append(self.schedule[tour_idx])
@@ -273,7 +280,7 @@ class VRPInstance():
             schedule = [[self.time_window[cust][0], self.time_window[cust][1]]]
             assert len(tour) == len(schedule)
             return schedule
-        else:
+        elif len(tour) > 1:
             schedule = []
             current_cust = None
             arrival = None
@@ -283,7 +290,7 @@ class VRPInstance():
                 end = None
                 current_cust = tour[i][0]
                 next_cust = tour[i+1][0]
-                travel_time = self.speed_f * self.distances[current_cust][next_cust]
+                travel_time = int(self.speed_f * self.distances[current_cust][next_cust])
                 tw_open, tw_close = self.time_window[current_cust]
                 nc_tw_open, nc_tw_close = self.time_window[next_cust]
                 if i == 0:
@@ -293,7 +300,7 @@ class VRPInstance():
                     elif current_cust != 0:
                         start = tw_open
                 else:
-                    start = max(arrival, tw_open)
+                    start = int(max(arrival, tw_open))
                 
                 # can I arrive at nc_tw_open exactly? If yes, wait until right time 
                 # to depart in order to arrive at nc_tw_open
@@ -319,6 +326,8 @@ class VRPInstance():
 
             assert len(tour) == len(schedule)
             return schedule
+        else:
+            return None
 
 
     #def compute_tour_schedule(self, tour):
@@ -424,13 +433,17 @@ class VRPInstance():
         self.solution.extend(new_tours)  # Add new tours to solution
         self.schedule.extend(new_schedules)
         self.incomplete_tours = new_tours
-
+        self.incomplete_schedules = [self.compute_tour_schedule(tour) for tour in self.incomplete_tours]
+                 
     def _get_incomplete_tours(self):
         incomplete_tours = []
         for tour in self.solution:
             if tour[0][0] != 0 or tour[-1][0] != 0:
                 incomplete_tours.append(tour)
         return incomplete_tours
+
+    def _get_incomplete_schedules(self):
+        return [self.compute_tour_schedule(tour) for tour in self.incomplete_tours]
 
     def get_max_nb_input_points(self):
         incomplete_tours = self.incomplete_tours
@@ -568,29 +581,18 @@ class VRPInstance():
         tour_from = self.nn_input_idx_to_tour[id_from][0]  # Tour that should be connected
         tour_to = self.nn_input_idx_to_tour[id_to][0]  # to this tour.
         #log.info(f"in do_action | tour_from: {tour_from}, tour_to {tour_to}")
+
+        print(f"DEBUG: tour_from: {tour_from}")
+        print(f"DEBUG: tour_to: {tour_to}")
+
         pos_from = self.nn_input_idx_to_tour[id_from][1]  # Position of the location that should be connected in tour_from
         pos_to = self.nn_input_idx_to_tour[id_to][1]  # Position of the location that should be connected in tour_to
         #log.info(f"in do_action | pos_from: {pos_from}, pos_to {pos_to}")
 
         nn_input_update = []  # Instead of recalculating the tensor representation, we only compute an update description.
-        # This improves performance.
 
-        # Exchange tour_from with tour_to or invert order of the tours. This reduces the number of cases that need
-        # to be considered in the following.
-        if len(tour_from) > 1 and len(tour_to) > 1:
-            if pos_from > 0 and pos_to > 0:
-                tour_to.reverse()
-            elif pos_from == 0 and pos_to == 0:
-                tour_from.reverse()
-            elif pos_from == 0 and pos_to > 0:
-                tour_from, tour_to = tour_to, tour_from
-        elif len(tour_to) > 1:
-            if pos_to == 0:
-                tour_to.reverse()
-            tour_from, tour_to = tour_to, tour_from
-        elif len(tour_from) > 1 and pos_from == 0:
-            tour_from.reverse()
-        #log.info(f"in do_action, after changing orders | tour_from: {tour_from}, tour_to {tour_to}")
+        tour_from, tour_to = reorder_tours(tour_from, tour_to, pos_from, pos_to)
+    
         # Now we only need to consider two cases 1) Connecting an incomplete tour with more than one location
         # to an incomplete tour with more than one location 2) Connecting an incomplete tour (single
         # or multiple locations) to incomplete tour consisting of a single location
@@ -711,12 +713,20 @@ class VRPInstance():
         origin_xy   = coords[origin_idx]  # (2,)
         distances   = torch.sqrt(((coords - origin_xy) ** 2).sum(dim=-1))  # (N,)
         origin_tour, origin_pos_in_tour = self.nn_input_idx_to_tour[origin_idx]
-        tour_idx    = self.solution.index(origin_tour)
-        current_time = self.schedule[tour_idx][origin_pos_in_tour][1]  # should be scalar (int/float)
+        origin_tour_idx = self.solution.index(origin_tour)
+        tours = [el[0] for i, el in enumerate(self.nn_input_idx_to_tour) if el is not None and i in self.open_nn_input_idx]
+        tours_positions = [el[1] for i, el in enumerate(self.nn_input_idx_to_tour) if el is not None and i in self.open_nn_input_idx] 
+        n = len(tours)
+        tours_indices = list(map(self.solution.index, tours))
+        #current_time = self.schedule[origin_tour_idx][origin_pos_in_tour][1]  
+        current_times = [self.schedule[t_idx][p][1] for t_idx, p in zip(tours_indices, tours_positions)]
+        current_times = torch.tensor(current_times, dtype=distances.dtype, device=distances.device)
         #scale down current_time to 0,1
-        current_time_norm = current_time / self.max_time 
-        time_channel = torch.full_like(distances, current_time_norm)
-
+        current_time_norm = current_times / self.max_time 
+        time_channel = torch.full_like(distances, 0)
+        time_channel[:n] = current_time_norm
+        time_channel[n:] = 1. 
+        
         return torch.stack([distances, time_channel], dim=-1)
     
 
@@ -765,12 +775,50 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
     time_feasible = arrival_time_norm <= tw_end_norm
 
     mask = (dynamic_input[:, :, 1] != 0)
+    # mask for same direction
+
     mask = mask & time_feasible
+    same_dir = torch.zeros_like(mask, dtype=torch.bool)
+
+    # mask feasibility in case when origin_tour is inserted after candidate tour and not before
+    origin_tw_end_norm = torch.empty(batch_size, dtype=torch.float32, device=static_input.device)
+
+    for i in range(batch_size):
+        idx_from = origin_nn_input_idx[i].item()
+        origin_tour, origin_pos = instances[i].nn_input_idx_to_tour[idx_from]
+        origin_cust = origin_tour[origin_pos][0]
+        tw_close = instances[i].time_window[origin_cust][1]
+        origin_tw_end_norm[i] = float(tw_close) / instances[i].max_time
+
+    mask_times = time_channel + travel_time_norm < origin_tw_end_norm.unsqueeze(-1) 
+    mask = mask & mask_times
 
     for i in range(batch_size):
         idx_from = origin_nn_input_idx[i].item()
         origin_tour = instances[i].nn_input_idx_to_tour[idx_from][0]
         origin_pos = instances[i].nn_input_idx_to_tour[idx_from][1]
+
+        if len(origin_tour) == 1:
+            # if origin_tour has len 1 -> mask for same direction is True
+            same_dir[i, :] = True
+        else:
+            if origin_pos == len(origin_tour) -1:
+                # then origin_idx is last customer of tour and has to be
+                # appended before the beginning of the next tour
+                # so set to False all indices that correspond to an end 
+                # of a candidate tour that is != 0
+                indices = [j for j, el in enumerate(instances[i].nn_input_idx_to_tour) if el is not None and el[-1] == 0]
+                same_dir[i, indices] = False 
+            elif origin_pos == 0:
+                # then origin_idx is first customer of tour and has to be
+                # appended after the entire next tour
+                # so set to False all indices that correspond to an end 
+                # of a candidate tour that is == 0
+                indices = [j for j, el in enumerate(instances[i].nn_input_idx_to_tour) if el is not None and el[-1] != 0]
+                same_dir[i, indices] = True 
+            else:
+                raise ValueError
+
 
         # Find the start of the tour in the nn input
         # e.g. for the tour [2, 3] two entries in nn input exists
@@ -798,13 +846,33 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
 
         # If the origin tour consists of a single customer mask all tours with demand is >= 1
         mask[(~multiple_customer_tour) & (dynamic_input[:, :, 0] >= capacity)] = False
-    else:origin_nn_input_idx,
+    else:
         mask[combined_demand > capacity] = False
 
+    mask = mask & same_dir
     mask[:, 0] = True  # Always allow to go to the depot
 
     return mask
 
+def reorder_tours(tour_from, tour_to, pos_from, pos_to):
+    # Exchange tour_from with tour_to or invert order of the tours. This reduces the number of cases that need
+    # to be considered in the following.
+    if len(tour_from) > 1 and len(tour_to) > 1:
+        if pos_from > 0 and pos_to > 0:
+            raise ValueError
+            tour_to.reverse()
+        elif pos_from == 0 and pos_to == 0:
+            raise ValueError
+            tour_from.reverse()
+        elif pos_from == 0 and pos_to > 0:
+            tour_from, tour_to = tour_to, tour_from
+    elif len(tour_from) == 1 and len(tour_to) > 1:
+        if pos_to == 1:
+            tour_from, tour_to = tour_to, tour_from
+    elif len(tour_from) > 1 and pos_from == 0:
+        tour_from, tour_to = tour_to, tour_from
+
+    return tour_from, tour_to
 
 
 def get_logger_file_name():

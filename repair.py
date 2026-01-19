@@ -69,7 +69,8 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
             #log.info(f"\t Number of possible actions: {[int(sum(l).item()) for l in mask]}")
             if idx_from == 0 and idx_to == 0:  # No need to update in this case
                 continue
-
+            print(f"\n\n")
+            print(f"instance: {i} | idx_from: {idx_from} | idx_to: {idx_to}")
             nn_input_update, cur_nn_input_idx = instance.do_action(idx_from, idx_to)  # Connect origin to select point
 
             for s in nn_input_update:
