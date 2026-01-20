@@ -277,7 +277,7 @@ class VRPInstance():
     def compute_tour_schedule(self, tour):
         if len(tour) == 1:
             cust = tour[0][0]
-            schedule = [[self.time_window[cust][0], self.time_window[cust][1]]]
+            schedule = [[int(self.time_window[cust][0]), int(self.time_window[cust][1])]]
             assert len(tour) == len(schedule)
             return schedule
         elif len(tour) > 1:
@@ -659,10 +659,14 @@ class VRPInstance():
         #update schedules
         sc = []
         for tour in self.solution:
-            if len(tour) > 1:
-                sc.append(self.compute_tour_schedule(tour))
-            else:
+            if len(tour) == 0 and tour[0][0] == 0:
                 sc.append([[0, 0]])
+            else:
+                sc.append(self.compute_tour_schedule(tour))
+            #if len(tour) > 1:
+            #    sc.append(self.compute_tour_schedule(tour))
+            #else:
+            #    sc.append([[0, 0]])
         self.schedule = sc
 
         return nn_input_update, tour_from[-1][2]
