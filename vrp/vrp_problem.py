@@ -715,7 +715,9 @@ class VRPInstance():
         origin_tour, origin_pos_in_tour = self.nn_input_idx_to_tour[origin_idx]
         origin_tour_idx = self.solution.index(origin_tour)
         tours = [el[0] for i, el in enumerate(self.nn_input_idx_to_tour) if el is not None and i in self.open_nn_input_idx]
+        tours.insert(0, [[0, 0, 0]])
         tours_positions = [el[1] for i, el in enumerate(self.nn_input_idx_to_tour) if el is not None and i in self.open_nn_input_idx] 
+        tours_positions.insert(0, 0)
         n = len(tours)
         tours_indices = list(map(self.solution.index, tours))
         #current_time = self.schedule[origin_tour_idx][origin_pos_in_tour][1]  
