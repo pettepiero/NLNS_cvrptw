@@ -17,7 +17,6 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
 
     origin_idx = np.zeros((batch_size), dtype=int)
     last_dim = torch.zeros((batch_size, N, 2), dtype=static_input.dtype, device=static_input.device)
-
     while not instance_repaired.all():
         # if origin_idx == 0 select the next tour end that serves as the origin at random
         for i, instance in enumerate(instances):
@@ -69,10 +68,7 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
             #log.info(f"\t Number of possible actions: {[int(sum(l).item()) for l in mask]}")
             if idx_from == 0 and idx_to == 0:  # No need to update in this case
                 continue
-            print(f"\n\n")
-            print(f"instance: {i} | idx_from: {idx_from} | idx_to: {idx_to}")
             nn_input_update, cur_nn_input_idx = instance.do_action(idx_from, idx_to)  # Connect origin to select point
-
             for s in nn_input_update:
                 s.insert(0, i)
                 nn_input_updates.append(s)

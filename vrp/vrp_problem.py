@@ -574,37 +574,21 @@ class VRPInstance():
     def do_action(self, id_from, id_to):
         """Performs an action. The tour end represented by input with the id id_from is connected to the tour end
          presented by the input with id id_to."""
-        #log.info(f"\n\nin do_action | id_from: {id_from}, id_to {id_to}")
-        #log.info(f"in do_action | self.solution:")
-        #for el in self.solution:
-        #    log.info(el)
         tour_from = self.nn_input_idx_to_tour[id_from][0]  # Tour that should be connected
         tour_to = self.nn_input_idx_to_tour[id_to][0]  # to this tour.
-        #log.info(f"in do_action | tour_from: {tour_from}, tour_to {tour_to}")
-
-        print(f"DEBUG: tour_from: {tour_from}")
-        print(f"DEBUG: tour_to: {tour_to}")
-
         pos_from = self.nn_input_idx_to_tour[id_from][1]  # Position of the location that should be connected in tour_from
         pos_to = self.nn_input_idx_to_tour[id_to][1]  # Position of the location that should be connected in tour_to
-        #log.info(f"in do_action | pos_from: {pos_from}, pos_to {pos_to}")
-
         nn_input_update = []  # Instead of recalculating the tensor representation, we only compute an update description.
 
         tour_from, tour_to = reorder_tours(tour_from, tour_to, pos_from, pos_to)
-    
+
         # Now we only need to consider two cases 1) Connecting an incomplete tour with more than one location
         # to an incomplete tour with more than one location 2) Connecting an incomplete tour (single
         # or multiple locations) to incomplete tour consisting of a single location
 
         # Case 1
         if len(tour_from) > 1 and len(tour_to) > 1:
-            #log.info(f"in do_action | case #1")
             combined_demand = sum(l[1] for l in tour_from) + sum(l[1] for l in tour_to)
-            #log.info(f"in do_action | combined_demand = {combined_demand} >? self.capacity: {combined_demand > self.capacity}")
-            if combined_demand > self.capacity:
-                log.info(f"\n\n**************************************************\n"
-                f"Failed: logged to {get_logger_file_name()}\n\n")
             assert combined_demand <= self.capacity  # This is ensured by the masking schema
 
             # The two incomplete tours are combined to one (in)complete tour. All network inputs associated with the
@@ -617,7 +601,6 @@ class VRPInstance():
 
         # Case 2
         if len(tour_to) == 1:
-            #log.info(f"in do_action | case #2")
             demand_from = sum(l[1] for l in tour_from)
             combined_demand = demand_from + sum(l[1] for l in tour_to)
             unfulfilled_demand = combined_demand - self.capacity
@@ -633,6 +616,7 @@ class VRPInstance():
                 nn_input_update.extend(self._get_network_input_update_for_tour(tour_from, combined_demand))
             # The new tour has a total demand that is larger than the vehicle capacity
             else:
+                raise NotImplementedError
                 nn_input_update.append([tour_from[-1][2], 0, 0])
                 if len(tour_from) > 1 and tour_from[0][0] != 0:
                     nn_input_update.append([tour_from[0][2], 0, 0])
@@ -646,6 +630,26 @@ class VRPInstance():
                 tour_to[0][1] = unfulfilled_demand  # Update demand of tour_to
 
                 nn_input_update.extend(self._get_network_input_update_for_tour(tour_to, unfulfilled_demand))
+        # Case 3
+        if len(tour_from) == 1  and len(tour_to) > 1:
+            demand_from = tour_from[0][1]
+            combined_demand = demand_from + sum(l[1] for l in tour_to)
+            unfulfilled_demand = combined_demand - self.capacity
+            # The new tour has a total demand that is smaller than or equal to the vehicle capacity
+            if unfulfilled_demand <= 0:
+                #if len(tour_from) > 1:
+                # Update solution
+                if tour_from == [[0, 0, 0]]:
+                    nn_input_update.append([tour_to[0][2], 0, 0])
+                    tour_to.insert(0, tour_from[0])
+                    # Generate input update
+                    nn_input_update.extend(self._get_network_input_update_for_tour(tour_to, combined_demand))
+                else:
+                    tour_from.extend(tour_to)
+                    self.solution.remove(tour_to)
+                    # Generate input update
+                    nn_input_update.extend(self._get_network_input_update_for_tour(tour_from, combined_demand))
+            
 
         # Add depot tour to the solution tours if it was removed
         if self.solution[0] != [[0, 0, 0]]:
@@ -719,19 +723,25 @@ class VRPInstance():
         origin_tour, origin_pos_in_tour = self.nn_input_idx_to_tour[origin_idx]
         origin_tour_idx = self.solution.index(origin_tour)
         tours = [el[0] for i, el in enumerate(self.nn_input_idx_to_tour) if el is not None and i in self.open_nn_input_idx]
-        tours.insert(0, [[0, 0, 0]])
+        #tours.insert(0, [[0, 0, 0]])
         tours_positions = [el[1] for i, el in enumerate(self.nn_input_idx_to_tour) if el is not None and i in self.open_nn_input_idx] 
-        tours_positions.insert(0, 0)
-        n = len(tours)
+        #tours_positions.insert(0, 0)
         tours_indices = list(map(self.solution.index, tours))
         #current_time = self.schedule[origin_tour_idx][origin_pos_in_tour][1]  
-        current_times = [self.schedule[t_idx][p][1] for t_idx, p in zip(tours_indices, tours_positions)]
-        current_times = torch.tensor(current_times, dtype=distances.dtype, device=distances.device)
+        current_times = torch.full_like(distances, self.max_time, dtype=distances.dtype, device=distances.device)
+        #number of not-None elements in self.nn_input_idx_to_tour
+        n = sum(el is not None for el in self.nn_input_idx_to_tour)
+        for j in range(n):
+            t, pos = self.nn_input_idx_to_tour[j]
+            idx = self.solution.index(t)
+            current_times[j] = self.schedule[idx][pos][1]
+
         #scale down current_time to 0,1
         current_time_norm = current_times / self.max_time 
-        time_channel = torch.full_like(distances, 0)
-        time_channel[:n] = current_time_norm
-        time_channel[n:] = 1. 
+        #\time_channel = torch.full_like(distances, 0)
+        #\time_channel[:n] = current_time_norm
+        #\time_channel[n:] = 1. 
+        time_channel = current_times
         
         return torch.stack([distances, time_channel], dim=-1)
     
