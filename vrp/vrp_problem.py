@@ -720,27 +720,19 @@ class VRPInstance():
         coords      = static_input[:, :2]
         origin_xy   = coords[origin_idx]  # (2,)
         distances   = torch.sqrt(((coords - origin_xy) ** 2).sum(dim=-1))  # (N,)
-        origin_tour, origin_pos_in_tour = self.nn_input_idx_to_tour[origin_idx]
-        origin_tour_idx = self.solution.index(origin_tour)
-        tours = [el[0] for i, el in enumerate(self.nn_input_idx_to_tour) if el is not None and i in self.open_nn_input_idx]
-        #tours.insert(0, [[0, 0, 0]])
-        tours_positions = [el[1] for i, el in enumerate(self.nn_input_idx_to_tour) if el is not None and i in self.open_nn_input_idx] 
-        #tours_positions.insert(0, 0)
-        tours_indices = list(map(self.solution.index, tours))
-        #current_time = self.schedule[origin_tour_idx][origin_pos_in_tour][1]  
         current_times = torch.full_like(distances, self.max_time, dtype=distances.dtype, device=distances.device)
         #number of not-None elements in self.nn_input_idx_to_tour
         n = sum(el is not None for el in self.nn_input_idx_to_tour)
         for j in range(n):
             t, pos = self.nn_input_idx_to_tour[j]
             idx = self.solution.index(t)
-            current_times[j] = self.schedule[idx][pos][1]
+            if pos == 0:
+                current_times[j] = self.schedule[idx][pos][0]
+            else:
+                current_times[j] = self.schedule[idx][pos][1]
 
         #scale down current_time to 0,1
         current_time_norm = current_times / self.max_time 
-        #\time_channel = torch.full_like(distances, 0)
-        #\time_channel[:n] = current_time_norm
-        #\time_channel[n:] = 1. 
         time_channel = current_times
         
         return torch.stack([distances, time_channel], dim=-1)

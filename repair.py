@@ -32,6 +32,17 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
 
         mask = vrp_problem.get_mask(origin_idx, static_input, dynamic_input_last_dim, instances, config, vehicle_capacity).to(
             config.device).float()
+        # mask: (batch, N) float/bool-like
+        row_ok = (mask.sum(dim=1) > 0)
+        if not row_ok.all():
+            bad = torch.where(~row_ok)[0].tolist()
+            raise RuntimeError(f"All-zero mask rows at batch indices: {bad}")
+        feas = mask.sum(dim=1)              # (batch,)
+        print("mask feasible actions: min/mean/max =",
+              feas.min().item(), feas.float().mean().item(), feas.max().item())
+        print("rows with only 1 action:", (feas == 1).sum().item(), "/", feas.numel())
+
+
 
         dynamic_input_float = dynamic_input_last_dim.float()
         dynamic_input_float[:, :, 0] = dynamic_input_float[:, :, 0] / float(vehicle_capacity)
@@ -91,6 +102,12 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
 
     tour_idx = torch.cat(tour_idx, dim=1)
     tour_logp = torch.cat(tour_logp, dim=1)
+    print("DEBUG: tour_logp requires_grad:", tour_logp.requires_grad)
+    print("DEBUG: tour_logp grad_fn:", tour_logp.grad_fn)
+    print("DEBUG: tour_logp.isfinite:", torch.isfinite(tour_logp).all().item())
+    print("logp stats: min/mean/max =",
+      logp.min().item(), logp.mean().item(), logp.max().item())
+
     return tour_idx, tour_logp
 
 

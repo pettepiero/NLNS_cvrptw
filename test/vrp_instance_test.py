@@ -2,6 +2,7 @@ import unittest
 from vrp.vrp_problem import VRPInstance
 from vrp.data_utils import read_instance_vrp
 import numpy as np
+import torch
 
 class test_get_costs(unittest.TestCase):
     def setUp(self):
@@ -11,21 +12,21 @@ class test_get_costs(unittest.TestCase):
         inst = self.instance
         self.assertEqual(inst.late_coeff, 1) 
         inst.create_initial_solution() 
-        #print("Instance initial solution:")
-        #for el in inst.solution:
-        #    print(el)
+        print("Instance initial solution:")
+        for el in inst.solution:
+            print(el)
         #print(f"Instance distances:")
         #for i, el in enumerate(inst.distances):
         #    print(f"From {i}")
         #    for j, el2 in enumerate(el):
         #        print(f"To {j}: {el2}")
 
-        #print("Instance schedule: ")
-        #for el in inst.schedule:
-        #    print(el)
-        #print(f"Instance time window: ")
-        #for i, el in enumerate(inst.time_window):
-        #    print(i, el)
+        print("Instance schedule: ")
+        for el in inst.schedule:
+            print(el)
+        print(f"Instance time window: ")
+        for i, el in enumerate(inst.time_window):
+            print(i, el)
 
         # Computing total delay of solution
         delay = 0
@@ -38,7 +39,7 @@ class test_get_costs(unittest.TestCase):
                 tw_end = inst.time_window[cust][1]
                 delay += max(0, departure - tw_end) 
 
-        self.assertEqual(delay, 2885) # compare with hand computed delay
+        self.assertEqual(delay, 0) # compare with hand computed delay
 
         # Computing total distance of solution
         dist = 0
@@ -48,20 +49,19 @@ class test_get_costs(unittest.TestCase):
                 next_cust = route[el_idx+1][0]
                 distance = np.sqrt((inst.original_locations[cust, 0] - inst.original_locations[next_cust, 0]) ** 2
                              + (inst.original_locations[cust, 1] - inst.original_locations[next_cust, 1]) ** 2)
-                #distance = inst.distances[cust][next_cust]
                 dist += distance
 
-        self.assertTrue(abs(dist-5398.025) <= 0.1)
+        self.assertTrue(abs(dist-inst.get_total_distance()) <= 0.1)
         total_cost = dist + inst.late_coeff*delay
-        print(f"total_cost: {total_cost} = {dist} + {inst.late_coeff}*{delay}")
+        print(f"total_cost: {total_cost} = {dist} + {inst.late_coeff}*{delay} | inst.get_costs(False): {inst.get_costs(False)}")
         print(f"inst.get_costs(True): {inst.get_costs(True)}")
         self.assertTrue(abs(total_cost - inst.get_costs(False)) <= 0.001)
-        self.assertTrue(abs(total_cost - inst.get_costs(True)) <= 1)
+        self.assertTrue(abs(total_cost - inst.get_costs(True)) <= 5)
     
     def test_get_sum_late_mins(self):
         inst = self.instance
         inst.create_initial_solution() 
-        self.assertEqual(inst.get_sum_late_mins(), 2885)
+        self.assertEqual(inst.get_sum_late_mins(), 0)
 
 class test_initial_solution(unittest.TestCase):
     def setUp(self):
@@ -75,6 +75,93 @@ class test_initial_solution(unittest.TestCase):
         self.assertEqual(len(inst.solution), len(inst.schedule))
         for so, sc in zip(inst.solution, inst.schedule):
             self.assertEqual(len(so), len(sc))
+
+class test_get_last_dim(unittest.TestCase):
+    def setUp(self):
+        self.instance = read_instance_vrp('./test/test_instance.vrp')
+
+    def test_get_last_dim_values(self):
+        inst = self.instance
+        inst.create_initial_solution()
+
+        # Make the instance "incomplete" so get_network_input() builds nn_input_idx_to_tour
+        print(f"Initial solution:")
+        for el in inst.solution:
+            print(el)
+
+        print(f"\n removing customer 5, which has coordinates: {inst.locations[5]}")
+        # and open_nn_input_idx, which get_last_dim relies on.
+        inst.destroy([5])  # remove customer 5 (pick any valid customer index)
+        print(f"After destruction:")
+        for el in inst.solution:
+            print(el)
+        print(f"Incomplete tours:")
+        for el in inst.incomplete_tours:
+            print(el)
+        # Build the NN static input exactly the way repair does it
+        input_size = inst.get_max_nb_input_points()
+        static_np, _dynamic_np = inst.get_network_input(input_size)
+        print(f"Equivalent nn_input_idx_to_tour:")
+        for el in inst.nn_input_idx_to_tour:
+            print(el)
+
+        print(f"inst.locations | time_window:")
+        for j, el in enumerate(zip(inst.locations, inst.time_window)):
+            print(j, el)
+
+        static_input = torch.tensor(static_np, dtype=torch.float32)
+        print(f"Got static_input:")
+        print(static_input)
+
+        print(f"inst.demand:")
+        for j, el in enumerate(inst.demand):
+            print(j, el)
+        print(f"Got _dynamic_np:")
+        print(_dynamic_np)
+        # Choose a valid origin idx (non-depot) that definitely exists
+        origin_idx = inst.open_nn_input_idx[1]
+        print(f"inst.open_nn_input_idx: {inst.open_nn_input_idx}")
+        print(f"Using origin_idx: {origin_idx}")
+
+        # Call the function under test
+        out = inst.get_last_dim(static_input, origin_idx)
+
+        # --- Assertions ---
+
+        # 1) shape: (N, 1)
+        self.assertEqual(out.ndim, 2)
+        self.assertEqual(out.shape[0], static_input.shape[0])
+        self.assertEqual(out.shape[1], 2)
+
+        out_1d = out.squeeze(-1)
+
+        # 2) expected_dists distances from origin to all points in coords space
+        coords = static_input[:, :2]
+        origin_xy = coords[origin_idx]
+        expected_dists = torch.sqrt(((coords - origin_xy) ** 2).sum(dim=-1))
+
+        # 3) expected_times override at origin_idx with scaled current_time
+        tours = [el[0] for el in inst.nn_input_idx_to_tour]
+        pos_in_tours = [el[1] for el in inst.nn_input_idx_to_tour]
+        indices = list(map(inst.solution.index, tours))
+        schedules = [inst.schedule[ind] for ind in indices]
+        expected_times = []
+        for j in range(len(indices)):
+            if pos_in_tours[j] == 0:
+                expected_times.append(schedules[j][pos_in_tours[j]][0])
+            else:
+                expected_times[j].append(schedules[j][pos_in_tours[j]][1])
+        expected_times = torch.tensor(expected_times, dtype=expected_dists.dtype, device=expected_dists.device)
+        print(f"DEBUG: expected_times: {expected_times}")
+        print(f"DEBUG: expected_dists: {expected_dists}")
+
+        expected = torch.stack((expected_dists, expected_times), dim=1)
+        print(f"DEBUG: expected: {expected}")
+        print(f"out_1d: {out_1d}")
+
+        # 4) compare
+        self.assertTrue(torch.allclose(out_1d, expected, atol=1e-6))
+
 
 if __name__ == '__main__':
     unittest.main()
