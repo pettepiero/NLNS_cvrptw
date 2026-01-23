@@ -796,23 +796,17 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
 
     dist_channel = dynamic_input[:, :, -2]
     time_channel = dynamic_input[:, :, -1]
-    print(f"DEBUG: time_channel: \n{time_channel}")
-    print(f"DEBUG: dist_channel: \n{dist_channel}")
     speed_f = torch.tensor([ins.speed_f for ins in instances], device=device, dtype=dtype)
     max_time = torch.tensor([ins.max_time for ins in instances], device=device, dtype=dtype)
 
     travel_time_norm = (dist_channel * speed_f.unsqueeze(-1))/max_time.unsqueeze(-1)
-    print(f"DEBUG: travel_time_norm: \n{travel_time_norm}")
 
     tw_norm = static_input[:, :, 2:] # two dimensional
-    print(f"DEBUG: tw_norm: \n{tw_norm}")
-    print(f"DEBUG: tw_norm.shape: \n{tw_norm.shape}")
     time_feasible = torch.zeros_like(time_channel, dtype=torch.bool, device=device)
     for i in range(batch_size):
         idx_from = origin_nn_input_idx[i].item()
         origin_tour, origin_pos = instances[i].nn_input_idx_to_tour[idx_from]
         if origin_pos == 0:
-            print(f"DEBUG: passing travel_times: {travel_time_norm}")
             time_feasible[i] = get_backward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
         else:
             time_feasible[i] = get_forward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
