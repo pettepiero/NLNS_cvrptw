@@ -782,7 +782,7 @@ def get_backward_mask(origin_idx, time, travel_times, inst, tw_open):
     time = torch.tensor(time).unsqueeze(-1)
     arrival_times = time - travel_times- (inst.service_time)/inst.max_time
     mask = tw_open <= arrival_times 
-    mask[orign_idx] = False
+    mask[origin_idx] = False
     
     return mask
 
