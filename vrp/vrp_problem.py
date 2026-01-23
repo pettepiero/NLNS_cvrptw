@@ -723,19 +723,20 @@ class VRPInstance():
         current_times = torch.full_like(distances, self.max_time, dtype=distances.dtype, device=distances.device)
         #number of not-None elements in self.nn_input_idx_to_tour
         n = sum(el is not None for el in self.nn_input_idx_to_tour)
+        current_pos = self.nn_input_idx_to_tour[origin_idx][1]
         for j in range(n):
             t, pos = self.nn_input_idx_to_tour[j]
             idx = self.solution.index(t)
-            if pos == 0:
+            if current_pos == 0:
                 current_times[j] = self.schedule[idx][pos][0]
             else:
                 current_times[j] = self.schedule[idx][pos][1]
 
         #scale down current_time to 0,1
         current_time_norm = current_times / self.max_time 
-        time_channel = current_times
+        #time_channel = current_times
         
-        return torch.stack([distances, time_channel], dim=-1)
+        return torch.stack([distances, current_time_norm], dim=-1)
     
 
     def _check_alignment(self, where=""):
@@ -765,22 +766,61 @@ class VRPInstance():
     #    return arrival_at_target <= latest_arrival
 
 
+def get_forward_mask(time, travel_times, inst, tw_close):
+    assert isinstance(time, float)
+    assert len(travel_times) == len(tw_close)
+    time = torch.tensor(time).unsqueeze(-1)
+    arrival_times = time + (inst.max_time*travel_times)/inst.max_time + (inst.service_time)/inst.max_time
+
+    return arrival_times <= tw_close
+    
+def get_backward_mask(time, travel_times, inst, tw_open):
+    print(f"\nDEBUG: in get_backward_mask:...")
+    print(f"DEBUG: time: {time}")
+    print(f"DEBUG: travel_times: {travel_times}")
+    print(f"DEBUG: tw_open: {tw_open}")
+    assert isinstance(time, float)
+    assert len(travel_times) == len(tw_open)
+    time = torch.tensor(time).unsqueeze(-1)
+    arrival_times = time - travel_times- (inst.service_time)/inst.max_time
+    print(f"DEBUG: arrival_times: {arrival_times}")
+
+    return tw_open <= arrival_times 
+
 def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config, capacity):
     """ Returns a mask for the current nn_input"""
+    assert len(dynamic_input.shape) == 3
+    assert dynamic_input.shape[-1] == 4
     device = dynamic_input.device
     dtype = dynamic_input.dtype
     batch_size = origin_nn_input_idx.shape[0]
 
     dist_channel = dynamic_input[:, :, -2]
     time_channel = dynamic_input[:, :, -1]
+    print(f"DEBUG: time_channel: \n{time_channel}")
+    print(f"DEBUG: dist_channel: \n{dist_channel}")
     speed_f = torch.tensor([ins.speed_f for ins in instances], device=device, dtype=dtype)
     max_time = torch.tensor([ins.max_time for ins in instances], device=device, dtype=dtype)
 
     travel_time_norm = (dist_channel * speed_f.unsqueeze(-1))/max_time.unsqueeze(-1)
-    arrival_time_norm = time_channel + travel_time_norm
+    print(f"DEBUG: travel_time_norm: \n{travel_time_norm}")
 
-    tw_end_norm = static_input[:,:,3]
-    time_feasible = arrival_time_norm <= tw_end_norm
+    tw_norm = static_input[:, :, 2:] # two dimensional
+    print(f"DEBUG: tw_norm: \n{tw_norm}")
+    print(f"DEBUG: tw_norm.shape: \n{tw_norm.shape}")
+    time_feasible = torch.zeros_like(time_channel, dtype=torch.bool, device=device)
+    for i in range(batch_size):
+        idx_from = origin_nn_input_idx[i].item()
+        origin_tour, origin_pos = instances[i].nn_input_idx_to_tour[idx_from]
+        if origin_pos == 0:
+            print(f"DEBUG: passing travel_times: {travel_time_norm}")
+            time_feasible[i] = get_backward_mask(time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
+        else:
+            time_feasible[i] = get_forward_mask(time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
+
+    #arrival_time_norm = time_channel + travel_time_norm
+
+    #time_feasible = arrival_time_norm <= tw_norm
 
     mask = (dynamic_input[:, :, 1] != 0)
     # mask for same direction
