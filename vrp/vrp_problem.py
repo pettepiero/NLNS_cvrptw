@@ -766,26 +766,25 @@ class VRPInstance():
     #    return arrival_at_target <= latest_arrival
 
 
-def get_forward_mask(time, travel_times, inst, tw_close):
+def get_forward_mask(origin_idx, time, travel_times, inst, tw_close):
     assert isinstance(time, float)
     assert len(travel_times) == len(tw_close)
     time = torch.tensor(time).unsqueeze(-1)
-    arrival_times = time + (inst.max_time*travel_times)/inst.max_time + (inst.service_time)/inst.max_time
+    arrival_times = time + travel_times + (inst.service_time)/inst.max_time
+    mask = arrival_times <= tw_close
+    mask[origin_idx] = False
 
-    return arrival_times <= tw_close
+    return mask
     
-def get_backward_mask(time, travel_times, inst, tw_open):
-    print(f"\nDEBUG: in get_backward_mask:...")
-    print(f"DEBUG: time: {time}")
-    print(f"DEBUG: travel_times: {travel_times}")
-    print(f"DEBUG: tw_open: {tw_open}")
+def get_backward_mask(origin_idx, time, travel_times, inst, tw_open):
     assert isinstance(time, float)
     assert len(travel_times) == len(tw_open)
     time = torch.tensor(time).unsqueeze(-1)
     arrival_times = time - travel_times- (inst.service_time)/inst.max_time
-    print(f"DEBUG: arrival_times: {arrival_times}")
-
-    return tw_open <= arrival_times 
+    mask = tw_open <= arrival_times 
+    mask[orign_idx] = False
+    
+    return mask
 
 def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config, capacity):
     """ Returns a mask for the current nn_input"""
@@ -814,9 +813,9 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
         origin_tour, origin_pos = instances[i].nn_input_idx_to_tour[idx_from]
         if origin_pos == 0:
             print(f"DEBUG: passing travel_times: {travel_time_norm}")
-            time_feasible[i] = get_backward_mask(time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
+            time_feasible[i] = get_backward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
         else:
-            time_feasible[i] = get_forward_mask(time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
+            time_feasible[i] = get_forward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
 
     #arrival_time_norm = time_channel + travel_time_norm
 
