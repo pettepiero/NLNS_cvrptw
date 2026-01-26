@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import logging
+from copy import deepcopy
 
 def get_distances_matrix(locations):
     n = len(locations)
@@ -451,6 +452,8 @@ class VRPInstance():
         for tour in incomplete_tours:
             if len(tour) == 1:
                 nb += 1
+                if tour[0][0] != 0:
+                    nb += 1
             else:
                 if tour[0][0] != 0:
                     nb += 1
@@ -497,9 +500,21 @@ class VRPInstance():
                 nn_input[i, 4] = tour[0][1]
                 nn_input[i, 5] = 1
                 tour[0][2] = i
-                network_input_idx_to_tour[i] = [tour, 0]
+                network_input_idx_to_tour[i] = [deepcopy(tour), 0]
                 destroyed_location_idx.append(tour[0][0])
                 i += 1
+
+                # second repetition for single element tours
+                if tour[0][0] != 0:
+                    nn_input[i, :2] = self.locations[tour[0][0]]
+                    nn_input[i, 2] = self.time_window[tour[0][0]][0] / self.max_time
+                    nn_input[i, 3] = self.time_window[tour[0][0]][1] / self.max_time
+                    nn_input[i, 4] = tour[0][1]
+                    nn_input[i, 5] = 1
+                    tour[0][2] = i
+                    network_input_idx_to_tour[i] = [deepcopy(tour), 0]
+                    destroyed_location_idx.append(tour[0][0])
+                    i += 1
             else:
                 # Create an input for the first location in an incomplete tour if the location is not the depot
                 if tour[0][0] != 0:
@@ -723,14 +738,23 @@ class VRPInstance():
         current_times = torch.full_like(distances, self.max_time, dtype=distances.dtype, device=distances.device)
         #number of not-None elements in self.nn_input_idx_to_tour
         n = sum(el is not None for el in self.nn_input_idx_to_tour)
+        prev_t = None
         current_pos = self.nn_input_idx_to_tour[origin_idx][1]
         for j in range(n):
             t, pos = self.nn_input_idx_to_tour[j]
             idx = self.solution.index(t)
-            if current_pos == 0:
-                current_times[j] = self.schedule[idx][pos][0]
+            if prev_t != t:
+                if current_pos == 0:
+                    current_times[j] = self.schedule[idx][pos][0]
+                else:
+                    current_times[j] = self.schedule[idx][pos][1]
             else:
-                current_times[j] = self.schedule[idx][pos][1]
+                if current_pos == 0:
+                    current_times[j] = self.schedule[idx][pos][1]
+                else:
+                    current_times[j] = self.schedule[idx][pos][0]
+
+            prev_t = t
 
         #scale down current_time to 0,1
         current_time_norm = current_times / self.max_time 
@@ -766,22 +790,22 @@ class VRPInstance():
     #    return arrival_at_target <= latest_arrival
 
 
-def get_forward_mask(origin_idx, time, travel_times, inst, tw_close):
+def get_forward_mask(origin_idx, time, travel_times, inst, tw):
     assert isinstance(time, float)
-    assert len(travel_times) == len(tw_close)
+    assert len(travel_times) == len(tw)
     time = torch.tensor(time).unsqueeze(-1)
     arrival_times = time + travel_times + (inst.service_time)/inst.max_time
-    mask = arrival_times <= tw_close
+    mask = arrival_times <= tw
     mask[origin_idx] = False
 
     return mask
     
-def get_backward_mask(origin_idx, time, travel_times, inst, tw_open):
+def get_backward_mask(origin_idx, time, travel_times, inst, tw):
     assert isinstance(time, float)
-    assert len(travel_times) == len(tw_open)
+    assert len(travel_times) == len(tw)
     time = torch.tensor(time).unsqueeze(-1)
-    arrival_times = time - travel_times- (inst.service_time)/inst.max_time
-    mask = tw_open <= arrival_times 
+    arrival_times = time - travel_times - (inst.service_time)/inst.max_time
+    mask = tw <= arrival_times 
     mask[origin_idx] = False
     
     return mask
@@ -806,10 +830,18 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
     for i in range(batch_size):
         idx_from = origin_nn_input_idx[i].item()
         origin_tour, origin_pos = instances[i].nn_input_idx_to_tour[idx_from]
-        if origin_pos == 0:
-            time_feasible[i] = get_backward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
+        if len(origin_tour) == 1:
+            tw_open, tw_close = instances[i].time_window[origin_tour[0][0]]
+            #bw_mask = get_backward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
+            bw_mask = get_backward_mask(idx_from, float(tw_close), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
+            #fw_mask = get_forward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
+            fw_mask = get_forward_mask(idx_from, float(tw_open), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
+            time_feasible = bw_mask | fw_mask
         else:
-            time_feasible[i] = get_forward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
+            if origin_pos == 0:
+                time_feasible[i] = get_backward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
+            else:
+                time_feasible[i] = get_forward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
 
     #arrival_time_norm = time_channel + travel_time_norm
 
