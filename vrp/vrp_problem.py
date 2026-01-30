@@ -58,6 +58,31 @@ class VRPInstance():
         distances[mask] = ((self.locations[mask] * self.locations[origin_location_id]) ** 2).sum(1)
         order = np.argsort(distances)
         return order[:n]
+    
+    def get_indices_of_cust(self, cust):
+        assert cust != 0
+        idx = []
+        for k, el in enumerate(self.nn_input_idx_to_tour):
+            if el is None:
+                break
+            for l in el[0]:
+                if l[0] == cust:
+                    idx.append(k)
+        assert len(idx) <= 2
+        return idx
+    
+    def get_idx_in_solution(self, tour, pos):
+        if self.solution.count(tour):
+            idx = self.solution.index(tour)
+            return idx
+        else:
+            cust = tour[pos][0]
+            idx = None
+            for k, el in enumerate(self.solution):
+                if el[0][0] == cust:
+                    idx = k
+                    return idx
+            raise ValueError
 
     def create_initial_solution(self):
         """Create an initial solution for this instance using a greedy heuristic."""
@@ -586,7 +611,7 @@ class VRPInstance():
                 self.nn_input_idx_to_tour[nn_input_idx_end] = [tour, len(tour) - 1]
         return nn_input_update
 
-    def do_action(self, id_from, id_to):
+    def do_action(self, id_from, id_to, print_debug = False):
         """Performs an action. The tour end represented by input with the id id_from is connected to the tour end
          presented by the input with id id_to."""
         tour_from = self.nn_input_idx_to_tour[id_from][0]  # Tour that should be connected
@@ -594,14 +619,19 @@ class VRPInstance():
         pos_from = self.nn_input_idx_to_tour[id_from][1]  # Position of the location that should be connected in tour_from
         pos_to = self.nn_input_idx_to_tour[id_to][1]  # Position of the location that should be connected in tour_to
         nn_input_update = []  # Instead of recalculating the tensor representation, we only compute an update description.
+        # Case 1
+        if print_debug:
+            print(f"DEBUG: Called do_action with: tour_from: {tour_from} | tour_to: {tour_to}")
 
-        tour_from, tour_to = reorder_tours(tour_from, tour_to, pos_from, pos_to)
+        tour_from, tour_to, pos_from, pos_to = reorder_tours(tour_from, tour_to, pos_from, pos_to)
+        # Case 1
+        if print_debug:
+            print(f"DEBUG: After reorder_tours: tour_from: {tour_from} | tour_to: {tour_to}")
 
         # Now we only need to consider two cases 1) Connecting an incomplete tour with more than one location
         # to an incomplete tour with more than one location 2) Connecting an incomplete tour (single
         # or multiple locations) to incomplete tour consisting of a single location
 
-        # Case 1
         if len(tour_from) > 1 and len(tour_to) > 1:
             combined_demand = sum(l[1] for l in tour_from) + sum(l[1] for l in tour_to)
             assert combined_demand <= self.capacity  # This is ensured by the masking schema
@@ -622,13 +652,46 @@ class VRPInstance():
 
             # The new tour has a total demand that is smaller than or equal to the vehicle capacity
             if unfulfilled_demand <= 0:
+                # deactivate unused twin of tour_to
+                if tour_to != [[0, 0, 0]]:
+                    indices = self.get_indices_of_cust(tour_to[0][0])
+                    idx_to_deactivate = None
+                    for idx in indices:
+                        if self.nn_input_idx_to_tour[idx][0] != tour_to:
+                            idx_to_deactivate = idx
+                    assert idx_to_deactivate is not None
+                    nn_input_update.append([idx_to_deactivate, 0, 0])
+
                 if len(tour_from) > 1:
                     nn_input_update.append([tour_from[-1][2], 0, 0])
+                else:
+                    if tour_from != [[0, 0, 0]]:
+                        #deactivate unused twin of tour_from
+                        indices = self.get_indices_of_cust(tour_from[0][0])
+                        idx_to_deactivate = None
+                        for idx in indices:
+                            if self.nn_input_idx_to_tour[idx][0] != tour_from:
+                                idx_to_deactivate = idx
+                        assert idx_to_deactivate is not None
+                        nn_input_update.append([idx_to_deactivate, 0, 0])
                 # Update solution
-                tour_from.extend(tour_to)
-                self.solution.remove(tour_to)
+                if tour_from in self.solution:
+                    index = self.solution.index(tour_from)
+                    self.solution[index] = tour_from
+                    tour_from.extend(tour_to)
+                else: #substitute twin in solution with tour_from
+                    twin_idx = self.get_idx_in_solution(tour_from, pos_from)
+                    self.solution[twin_idx] = tour_from
+                    tour_from.extend(tour_to)
+                if tour_to in self.solution:
+                    self.solution.remove(tour_to)
+                else: #remove twin tour
+                    tour_to = self.solution[self.get_idx_in_solution(tour_to, pos_to)]
+                    self.solution.remove(tour_to)
                 # Generate input update
                 nn_input_update.extend(self._get_network_input_update_for_tour(tour_from, combined_demand))
+                     
+
             # The new tour has a total demand that is larger than the vehicle capacity
             else:
                 raise NotImplementedError
@@ -660,7 +723,31 @@ class VRPInstance():
                     # Generate input update
                     nn_input_update.extend(self._get_network_input_update_for_tour(tour_to, combined_demand))
                 else:
-                    tour_from.extend(tour_to)
+                    # deactivate tour_to end that is connected to tour_from
+                    nn_input_update.append([tour_to[0][2], 0, 0])
+                    # deactivate twin of tour_from if it exists
+                    tour_from_indices = self.get_indices_of_cust(tour_from[0][0])
+                    twin_idx = None
+                    for t_idx in tour_from_indices:
+                        t = self.nn_input_idx_to_tour[t_idx][0] 
+                        if t != tour_from:
+                            nn_input_update.append([t[0][2], 0, 0])
+                            twin_idx = t_idx
+                    if tour_from in self.solution:
+                        index = self.solution.index(tour_from)
+                        self.solution[index] = tour_from
+                        tour_from.extend(tour_to)
+                    else:
+                        # then twin is present. Substitute twin with new extended tour
+                        #first find index in solution that has to be substituted
+                        idx_to_substitute = None
+                        for k, el in enumerate(self.solution):
+                            if el[0][0] == tour_from[0][0]:
+                                idx_to_substitute = k
+                                break
+                        assert idx_to_substitute is not None
+                        tour_from.extend(tour_to)
+                        self.solution[idx_to_substitute] = tour_from
                     self.solution.remove(tour_to)
                     # Generate input update
                     nn_input_update.extend(self._get_network_input_update_for_tour(tour_from, combined_demand))
@@ -678,7 +765,7 @@ class VRPInstance():
         #update schedules
         sc = []
         for tour in self.solution:
-            if len(tour) == 0 and tour[0][0] == 0:
+            if len(tour) == 1 and tour[0][0] == 0:
                 sc.append([[0, 0]])
             else:
                 sc.append(self.compute_tour_schedule(tour))
@@ -730,7 +817,7 @@ class VRPInstance():
 
         return new_instance
 
-    def get_last_dim(self, static_input, origin_idx):
+    def get_last_dim(self, static_input, origin_idx, print_debug=False):
         # (N, 2) coords in NN-input space
         coords      = static_input[:, :2]
         origin_xy   = coords[origin_idx]  # (2,)
@@ -738,12 +825,15 @@ class VRPInstance():
         current_times = torch.full_like(distances, self.max_time, dtype=distances.dtype, device=distances.device)
         #number of not-None elements in self.nn_input_idx_to_tour
         n = sum(el is not None for el in self.nn_input_idx_to_tour)
-        prev_t = None
+        #n = len(self.open_nn_input_idx)
+        prev_t = [[0, 0, None]] 
         current_pos = self.nn_input_idx_to_tour[origin_idx][1]
-        for j in range(n):
+        #for j in range(n):
+        for j in self.open_nn_input_idx:
             t, pos = self.nn_input_idx_to_tour[j]
-            idx = self.solution.index(t)
-            if prev_t != t:
+            idx = self.get_idx_in_solution(t, pos)
+
+            if (len(prev_t) == len(t)) and (prev_t[0][0] == t[0][0]) and (t[0][0] != 0):
                 if current_pos == 0:
                     current_times[j] = self.schedule[idx][pos][0]
                 else:
@@ -836,7 +926,15 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
             bw_mask = get_backward_mask(idx_from, float(tw_close), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
             #fw_mask = get_forward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
             fw_mask = get_forward_mask(idx_from, float(tw_open), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
-            time_feasible = bw_mask | fw_mask
+            time_feasible[i] = bw_mask | fw_mask
+            # set twin tour of length 1 to False
+            cust = origin_tour[0][0]
+            if cust != 0:
+                if instances[i].nn_input_idx_to_tour[idx_from - 1][0][0][0] == cust:
+                    time_feasible[i][idx_from - 1] = False
+                elif instances[i].nn_input_idx_to_tour[idx_from + 1][0][0][0] == cust:
+                    time_feasible[i][idx_from + 1] = False
+
         else:
             if origin_pos == 0:
                 time_feasible[i] = get_backward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
@@ -939,13 +1037,16 @@ def reorder_tours(tour_from, tour_to, pos_from, pos_to):
             tour_from.reverse()
         elif pos_from == 0 and pos_to > 0:
             tour_from, tour_to = tour_to, tour_from
+            pos_from, pos_to = pos_to, pos_from
     elif len(tour_from) == 1 and len(tour_to) > 1:
-        if pos_to == 1:
+        if pos_to > 0:
             tour_from, tour_to = tour_to, tour_from
+            pos_from, pos_to = pos_to, pos_from
     elif len(tour_from) > 1 and pos_from == 0:
         tour_from, tour_to = tour_to, tour_from
+        pos_from, pos_to = pos_to, pos_from
 
-    return tour_from, tour_to
+    return tour_from, tour_to, pos_from, pos_to
 
 
 def get_logger_file_name():

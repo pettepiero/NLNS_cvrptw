@@ -6,8 +6,8 @@ from vrp import vrp_problem
 import torch.nn.functional as F
 import logging
 
-
 log = logging.getLogger(__name__)
+
 def _actor_model_forward(actor, instances, static_input, dynamic_input, config, vehicle_capacity, rng):
     batch_size = static_input.shape[0]
     N = static_input.shape[1]
@@ -17,6 +17,7 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
 
     origin_idx = np.zeros((batch_size), dtype=int)
     last_dim = torch.zeros((batch_size, N, 2), dtype=static_input.dtype, device=static_input.device)
+    repair_round = 0
     while not instance_repaired.all():
         # if origin_idx == 0 select the next tour end that serves as the origin at random
         for i, instance in enumerate(instances):
@@ -25,7 +26,7 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
                     origin_idx[i] = np.random.choice(instance.open_nn_input_idx, 1).item()
                 else:
                     origin_idx[i] = rng.choice(instance.open_nn_input_idx, 1).item()
-            last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i])
+            last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i], print_debug=False)
 
         # Rescale customer demand based on vehicle capacity
         dynamic_input_last_dim = torch.cat((dynamic_input, last_dim), dim=-1)
@@ -33,14 +34,14 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
         mask = vrp_problem.get_mask(origin_idx, static_input, dynamic_input_last_dim, instances, config, vehicle_capacity).to(
             config.device).float()
         # mask: (batch, N) float/bool-like
-        row_ok = (mask.sum(dim=1) > 0)
-        if not row_ok.all():
-            bad = torch.where(~row_ok)[0].tolist()
-            raise RuntimeError(f"All-zero mask rows at batch indices: {bad}")
-        feas = mask.sum(dim=1)              # (batch,)
-        print("mask feasible actions: min/mean/max =",
-              feas.min().item(), feas.float().mean().item(), feas.max().item())
-        print("rows with only 1 action:", (feas == 1).sum().item(), "/", feas.numel())
+        #row_ok = (mask.sum(dim=1) > 0)
+        #if not row_ok.all():
+        #    bad = torch.where(~row_ok)[0].tolist()
+        #    raise RuntimeError(f"All-zero mask rows at batch indices: {bad}")
+        #feas = mask.sum(dim=1)              # (batch,)
+        #print("mask feasible actions: min/mean/max =",
+        #      feas.min().item(), feas.float().mean().item(), feas.max().item())
+        #print("rows with only 1 action:", (feas == 1).sum().item(), "/", feas.numel())
 
 
 
@@ -79,7 +80,19 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
             #log.info(f"\t Number of possible actions: {[int(sum(l).item()) for l in mask]}")
             if idx_from == 0 and idx_to == 0:  # No need to update in this case
                 continue
-            nn_input_update, cur_nn_input_idx = instance.do_action(idx_from, idx_to)  # Connect origin to select point
+            print_debug = False
+            if print_debug:
+                print(f"\nDEBUG: instance: {i}")
+                print(f"DEBUG: instance.solution:")
+                for k, el in enumerate(instance.solution):
+                    print(k, el)
+                print(f"DEBUG: instance.nn_input_idx_to_tour:")
+                for k, el in enumerate(instance.nn_input_idx_to_tour):
+                    if k in instance.open_nn_input_idx:
+                        print(' ', k, el)
+                    else:
+                        print('X', k, el)
+            nn_input_update, cur_nn_input_idx = instance.do_action(idx_from, idx_to, print_debug)  # Connect origin to select point
             for s in nn_input_update:
                 s.insert(0, i)
                 nn_input_updates.append(s)
@@ -99,14 +112,15 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
         logp = logp * (1. - torch.from_numpy(instance_repaired).float().to(config.device))
         tour_logp.append(logp.unsqueeze(1))
         tour_idx.append(ptr.data.unsqueeze(1))
+        repair_round += 1
 
     tour_idx = torch.cat(tour_idx, dim=1)
     tour_logp = torch.cat(tour_logp, dim=1)
-    print("DEBUG: tour_logp requires_grad:", tour_logp.requires_grad)
-    print("DEBUG: tour_logp grad_fn:", tour_logp.grad_fn)
-    print("DEBUG: tour_logp.isfinite:", torch.isfinite(tour_logp).all().item())
-    print("logp stats: min/mean/max =",
-      logp.min().item(), logp.mean().item(), logp.max().item())
+    #print("DEBUG: tour_logp requires_grad:", tour_logp.requires_grad)
+    #print("DEBUG: tour_logp grad_fn:", tour_logp.grad_fn)
+    #print("DEBUG: tour_logp.isfinite:", torch.isfinite(tour_logp).all().item())
+    #print("logp stats: min/mean/max =",
+    #  logp.min().item(), logp.mean().item(), logp.max().item())
 
     return tour_idx, tour_logp
 

@@ -130,16 +130,16 @@ def train_nlns(actor, critic, run_id, config):
         total = 0.0
         
         #DEBUG
-        n_params = 0
-        n_none = 0
-        sum_abs = 0.0
-        for p in actor.parameters():
-            n_params += 1
-            if p.grad is None:
-                n_none += 1
-            else:
-                sum_abs += p.grad.detach().abs().sum().item()
-        print(f"DEBUG: grads: none/total =", n_none, "/", n_params, " sum|grad|=", sum_abs)
+        #n_params = 0
+        #n_none = 0
+        #sum_abs = 0.0
+        #for p in actor.parameters():
+        #    n_params += 1
+        #    if p.grad is None:
+        #        n_none += 1
+        #    else:
+        #        sum_abs += p.grad.detach().abs().sum().item()
+        #print(f"DEBUG: grads: none/total =", n_none, "/", n_params, " sum|grad|=", sum_abs)
         torch.nn.utils.clip_grad_norm_(actor.parameters(), config.max_grad_norm)
         actor_optim.step()
 
