@@ -310,9 +310,9 @@ class VRPInstance():
             schedule = []
             current_cust = None
             arrival = None
+            start = None
             for i in range(len(tour) -1):
                 service_time = self.service_time
-                start = None
                 end = None
                 current_cust = tour[i][0]
                 next_cust = tour[i+1][0]
@@ -320,13 +320,16 @@ class VRPInstance():
                 tw_open, tw_close = self.time_window[current_cust]
                 nc_tw_open, nc_tw_close = self.time_window[next_cust]
                 if i == 0:
-                    if current_cust == 0:
-                        start = 0 #for depot start from 0
-                        service_time = 0
-                    elif current_cust != 0:
-                        start = tw_open
-                else:
-                    start = int(max(arrival, tw_open))
+                    #if current_cust == 0:
+                    #    start = 0 #for depot start from 0
+                    #    service_time = 0
+                    #elif current_cust != 0:
+                    #    start = tw_open
+
+                    start = 0
+                    arrival = travel_time
+                #else:
+                #    start = int(max(arrival, tw_open))
                 
                 # can I arrive at nc_tw_open exactly? If yes, wait until right time 
                 # to depart in order to arrive at nc_tw_open
