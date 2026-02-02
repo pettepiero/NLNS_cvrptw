@@ -10,7 +10,7 @@ class InstanceBlueprint:
     """Describes the properties of a certain instance type (e.g. number of customers)."""
 
     def __init__(self, nb_customers, depot_position, customer_position, nb_customer_cluster, demand_type, demand_min,
-                 demand_max, capacity, grid_size, service_time, late_coeff, max_time, test_tw=False, fixed_tw=None):
+                 demand_max, capacity, grid_size, service_time, late_coeff, max_time, test_tw=False, solomon_tw=False):
         self.nb_customers           = nb_customers
         self.depot_position         = depot_position
         self.customer_position      = customer_position
@@ -25,7 +25,7 @@ class InstanceBlueprint:
         self.late_coeff             = late_coeff
         self.max_time               = max_time
         self.test_tw                = test_tw
-        self.fixed_tw               = fixed_tw
+        self.solomon_tw             = solomon_tw
 
 
 def get_blueprint(blueprint_name):
@@ -64,11 +64,11 @@ def create_dataset(size, config, rng, create_solution=False, use_cost_memory=Tru
 
 def generate_Instance(blueprint, use_cost_memory, rng):
     depot_position      = get_depot_position(blueprint, rng)
-    customer_position   = get_customer_position(blueprint, rng)
+    customer_position   = get_customer_position(blueprint, depot_position, rng)
     demand              = get_customer_demand(blueprint, customer_position, rng)
     original_locations  = np.insert(customer_position, 0, depot_position, axis=0)
     demand              = np.insert(demand, 0, 0, axis=0)
-    time_window         = get_time_window(blueprint, rng)
+    time_window         = get_time_window(blueprint, customer_position, rng)
 
     if blueprint.grid_size == 1000:
         locations = original_locations / 1000
@@ -94,20 +94,34 @@ def generate_Instance(blueprint, use_cost_memory, rng):
         max_time            = blueprint.max_time)
     return vrp_instance
 
-def get_time_window(blueprint, rng):
-    """
-    Generate time windows following the description in https://www.jstor.org/stable/822953
-    """
+def get_time_window(blueprint, locations, rng):
     max_time = blueprint.max_time 
     min_time = 0
     avg_gap = max_time/10
     if blueprint.test_tw == False:
         centres         = rng.uniform(size=blueprint.nb_customers, low=min_time + avg_gap/2, high=max_time - avg_gap/2)
-        if blueprint.fixed_tw is None:
+        if blueprint.solomon_tw == False:
+            #Generate time windows following the description in https://www.jstor.org/stable/822953
             windows_widths  = rng.normal(loc=avg_gap, scale=np.sqrt(avg_gap), size=blueprint.nb_customers)
         else:
+            #generate time windows according to DER-Solomon
+            #dists from depot
+            n = len(locations)
+            m = np.zeros((n,n))
+            for i in range(n):
+                for j in range(n):
+                    m[i, j] = np.sqrt( (locations[i][0] - locations[j][0])**2 + (locations[i][1] - locations[j][1])**2) 
+        
+            dists = m[0]
+            depot_start = 0
+            depot_end = blueprint.max_time
+            service = blueprint.service_time
+            low_bound = dists + depot_start
+            high_bound = np.maximum(low_bound, depot_end - dists - service)
+            centres = rng.uniform(size=blueprint.nb_customers, low=low_bound, high=high_bound)
+
             windows_widths  = rng.normal(loc=blueprint.max_time/2, scale=np.sqrt(avg_gap), size=blueprint.nb_customers)
-            windows_widths  = [blueprint.fixed_tw/2] * blueprint.nb_customers
+
         tw = [[max(c-w, min_time) , min(c+w, max_time)] for c,w in zip(centres, windows_widths)]
         tw.insert(0, [min_time, max_time])
     else: # test instance where each customer has TW [0, max_time]
@@ -151,22 +165,31 @@ def get_customer_position_clustered(nb_customers, blueprint, rng):
     return np.concatenate((random_centers, np.array(customer_positions)), axis=0)
 
 
-def get_customer_position(blueprint, rng):
-    if blueprint.customer_position == 'R':
-        if blueprint.grid_size == 1:
-            return rng.uniform(size=(blueprint.nb_customers, 2))
-        elif blueprint.grid_size == 1000:
-            return rng.integers(0, 1001, (blueprint.nb_customers, 2))
-        elif blueprint.grid_size == 1000000:
-            return rng.integers(0, 1000001, (blueprint.nb_customers, 2))
-        elif blueprint.grid_size == 100:
-            return rng.integers(0, 101, (blueprint.nb_customers, 2))
-    elif blueprint.customer_position == 'C':
-        return get_customer_position_clustered(blueprint.nb_customers, blueprint)
-    elif blueprint.customer_position == 'RC':
-        customer_position = get_customer_position_clustered(int(blueprint.nb_customers / 2), blueprint)
-        customer_position_2 = rng.integers(0, 1001, (blueprint.nb_customers - len(customer_position), 2))
-        return np.concatenate((customer_position, customer_position_2), axis=0)
+def get_customer_position(blueprint, depot_pos, rng):
+    def is_feasible(pos, depot_pos):
+        margin = blueprint.max_time/ 10 #10% margin
+        dist_to_depot = np.linalg.norm(pos - depot_pos, axis=1)
+        return (2*dist_to_depot + blueprint.service_time) < blueprint.max_time - margin
+
+    valid_positions = np.empty((0, 2))
+    while len(valid_positions) < blueprint.nb_customers:
+        needed = blueprint.nb_customers - len(valid_positions)
+
+        if blueprint.customer_position == 'R':
+            if blueprint.grid_size == 1:
+                candidates = rng.uniform(size=(needed, 2))
+            else:
+                candidates = rng.integers(0, blueprint.grid_size + 1, (needed, 2))
+
+        elif blueprint.customer_position == 'C':
+            candidate = get_customer_position_clustered(blueprint.nb_customers, blueprint)
+        elif blueprint.customer_position == 'RC':
+            raise NotImplementedError
+
+        mask = is_feasible(candidates, depot_pos)
+        valid_positions = np.concatenate([valid_positions, candidates[mask]])
+        
+    return valid_positions[:blueprint.nb_customers]
 
 
 def get_customer_demand(blueprint, customer_position, rng):

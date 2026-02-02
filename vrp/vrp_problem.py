@@ -33,8 +33,7 @@ class VRPInstance():
         # i_n being the index of the associated network input.
 
         self.schedule = schedule
-        #self.speed_f = 1000
-        self.speed_f = 1000
+        self.speed_f = round(original_locations[1][1]/(locations[1][1] + 1e-9))
 
         self.nn_input_idx_to_tour = None  # After get_network_input() has been called this is a list where the
         # i-th element corresponds to the tour end represented by the i-th network input. If the network

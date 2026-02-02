@@ -47,4 +47,7 @@ dataset['120'] = InstanceBlueprint(nb_customers=20, depot_position='R', customer
 
 # 25 customers
 dataset['approxsolomon25'] = InstanceBlueprint(nb_customers=25, depot_position='R', customer_position='R', nb_customer_cluster=1,
-    demand_type='inter', demand_min=1, demand_max=30, capacity=200, grid_size=100, service_time=10, max_time=230, late_coeff=0, fixed_tw=100)  
+    demand_type='inter', demand_min=1, demand_max=30, capacity=200, grid_size=100, service_time=10, max_time=230, late_coeff=0, solomon_tw=100)  
+# 25 customers
+dataset['25'] = InstanceBlueprint(nb_customers=25, depot_position='R', customer_position='R', nb_customer_cluster=1,
+    demand_type='inter', demand_min=1, demand_max=30, capacity=200, grid_size=1000, service_time=100, max_time=10000, late_coeff=0)  
