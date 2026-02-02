@@ -886,7 +886,7 @@ class VRPInstance():
 def get_forward_mask(origin_idx, time, travel_times, inst, tw):
     assert isinstance(time, float)
     assert len(travel_times) == len(tw)
-    time = torch.tensor(time).unsqueeze(-1)
+    time = torch.tensor(time, device=travel_times.device).unsqueeze(-1)
     arrival_times = time + travel_times + (inst.service_time)/inst.max_time
     mask = arrival_times <= tw
     mask[origin_idx] = False
@@ -896,7 +896,7 @@ def get_forward_mask(origin_idx, time, travel_times, inst, tw):
 def get_backward_mask(origin_idx, time, travel_times, inst, tw):
     assert isinstance(time, float)
     assert len(travel_times) == len(tw)
-    time = torch.tensor(time).unsqueeze(-1)
+    time = torch.tensor(time, device=travel_times.device).unsqueeze(-1)
     arrival_times = time - travel_times - (inst.service_time)/inst.max_time
     mask = tw <= arrival_times 
     mask[origin_idx] = False

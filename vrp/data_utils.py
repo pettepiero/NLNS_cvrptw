@@ -10,7 +10,7 @@ class InstanceBlueprint:
     """Describes the properties of a certain instance type (e.g. number of customers)."""
 
     def __init__(self, nb_customers, depot_position, customer_position, nb_customer_cluster, demand_type, demand_min,
-                 demand_max, capacity, grid_size, service_time, late_coeff, max_time, test_tw=False):
+                 demand_max, capacity, grid_size, service_time, late_coeff, max_time, test_tw=False, fixed_tw=None):
         self.nb_customers           = nb_customers
         self.depot_position         = depot_position
         self.customer_position      = customer_position
@@ -25,6 +25,7 @@ class InstanceBlueprint:
         self.late_coeff             = late_coeff
         self.max_time               = max_time
         self.test_tw                = test_tw
+        self.fixed_tw               = fixed_tw
 
 
 def get_blueprint(blueprint_name):
@@ -73,6 +74,8 @@ def generate_Instance(blueprint, use_cost_memory, rng):
         locations = original_locations / 1000
     elif blueprint.grid_size == 1000000:
         locations = original_locations / 1000000
+    elif blueprint.grid_size == 100:
+        locations = original_locations / 100
     else:
         assert blueprint.grid_size == 1
         locations = original_locations
@@ -100,7 +103,11 @@ def get_time_window(blueprint, rng):
     avg_gap = max_time/10
     if blueprint.test_tw == False:
         centres         = rng.uniform(size=blueprint.nb_customers, low=min_time + avg_gap/2, high=max_time - avg_gap/2)
-        windows_widths  = rng.normal(loc=avg_gap, scale=np.sqrt(avg_gap), size=blueprint.nb_customers)
+        if blueprint.fixed_tw is None:
+            windows_widths  = rng.normal(loc=avg_gap, scale=np.sqrt(avg_gap), size=blueprint.nb_customers)
+        else:
+            windows_widths  = rng.normal(loc=blueprint.max_time/2, scale=np.sqrt(avg_gap), size=blueprint.nb_customers)
+            windows_widths  = [blueprint.fixed_tw/2] * blueprint.nb_customers
         tw = [[max(c-w, min_time) , min(c+w, max_time)] for c,w in zip(centres, windows_widths)]
         tw.insert(0, [min_time, max_time])
     else: # test instance where each customer has TW [0, max_time]
@@ -116,6 +123,8 @@ def get_depot_position(blueprint, rng):
             return rng.integers(0, 1001, 2)
         elif blueprint.grid_size == 1000000:
             return rng.integers(0, 1000001, 2)
+        elif blueprint.grid_size == 100:
+            return rng.integers(0, 101, 2)
     elif blueprint.depot_position == 'C':
         if blueprint.grid_size == 1:
             return np.array([0.5, 0.5])
@@ -150,6 +159,8 @@ def get_customer_position(blueprint, rng):
             return rng.integers(0, 1001, (blueprint.nb_customers, 2))
         elif blueprint.grid_size == 1000000:
             return rng.integers(0, 1000001, (blueprint.nb_customers, 2))
+        elif blueprint.grid_size == 100:
+            return rng.integers(0, 101, (blueprint.nb_customers, 2))
     elif blueprint.customer_position == 'C':
         return get_customer_position_clustered(blueprint.nb_customers, blueprint)
     elif blueprint.customer_position == 'RC':

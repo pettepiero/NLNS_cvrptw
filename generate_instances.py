@@ -37,7 +37,7 @@ def write_vrplib_xe(filename, loc, demand, capacity, grid_size, name="problem"):
         f.write("EOF\n")
 
 def write_vrplib_tw(filename, loc, demand, capacity, grid_size, time_window, service_time, late_coeff, name="problem"):
-    assert grid_size == 1000 or grid_size == 1000000
+    assert grid_size == 1000 or grid_size == 1000000 or grid_size == 100
 
     with open(filename, 'w+') as f:
         f.write("\n".join([
