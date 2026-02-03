@@ -338,6 +338,15 @@ class VRPInstance():
                 elif start + service_time + travel_time < nc_tw_close:
                     end = start + service_time #leave as soon as possible
                 else:
+                    print(f"    DEBUG: failed on tour: {tour} at index {i}")
+                    print(f"    start: {start}")
+                    print(f"    end: {end}")
+                    print(f"    arrival: {arrival}")
+                    print(f"    travel_time: {travel_time}")
+                    print(f"    nc_tw_open: {nc_tw_open}")
+                    print(f"    nc_tw_close: {nc_tw_close}")
+                    print(f"    service_time: {service_time}")
+                    print(f"    schedule: {schedule}")
                     raise ValueError 
                 schedule.append([int(start), int(end)])
                 arrival = end + travel_time
