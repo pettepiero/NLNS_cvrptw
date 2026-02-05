@@ -335,7 +335,7 @@ class VRPInstance():
                 if nc_tw_open - travel_time >= start + service_time:
                     #end = nc_tw_open - travel_time + service_time
                     end = start + service_time
-                elif start + service_time + travel_time < nc_tw_close:
+                elif start + service_time + travel_time <= nc_tw_close:
                     end = start + service_time #leave as soon as possible
                 else:
                     print(f"    DEBUG: failed on tour: {tour} at index {i}")
