@@ -130,7 +130,7 @@ class test_get_mask(unittest.TestCase):
                 time            = dynamic_input_last_dim[origin_idx][-1].item(),
                 travel_times    = travel_time_norm,
                 inst            = inst,
-                tw_close        = static_np[:, 3])
+                tw              = static_np[:, 3])
 
         print(f"\n\tDEBUG: fw_mask: {fw_mask}")
         for i in range(len(fw_mask)):
@@ -241,7 +241,7 @@ class test_get_mask(unittest.TestCase):
                 time            = dynamic_input_last_dim[origin_idx][-1].item(),
                 travel_times    = travel_time_norm,
                 inst            = inst,
-                tw_open         = static_np[:, 2])
+                tw              = static_np[:, 2])
 
         print(f"\nDEBUG: bw_mask: {bw_mask}")
         for i in range(len(bw_mask)):
@@ -298,7 +298,11 @@ class test_get_mask(unittest.TestCase):
         print(f"\n\torigin_idx={origin_idx} corresponds to open tour:")
         print('\t', inst.nn_input_idx_to_tour[origin_idx][0])
         print(f"\n\tSchedule with incomplete tour of nn_input at index {origin_idx}:")
+        print(f"Instance solution:")
+        for j, el in enumerate(inst.solution):
+            print(j, el)
         sched = inst.schedule[inst.solution.index(inst.nn_input_idx_to_tour[origin_idx][0])]
+        
         pos = inst.nn_input_idx_to_tour[origin_idx][1]
         print('\t', sched) 
         if pos == 0:

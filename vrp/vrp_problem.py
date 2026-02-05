@@ -319,38 +319,39 @@ class VRPInstance():
                 tw_open, tw_close = self.time_window[current_cust]
                 nc_tw_open, nc_tw_close = self.time_window[next_cust]
                 if i == 0:
-                    #if current_cust == 0:
-                    #    start = 0 #for depot start from 0
-                    #    service_time = 0
-                    #elif current_cust != 0:
-                    #    start = tw_open
-
-                    start = 0
-                    arrival = travel_time
-                #else:
-                #    start = int(max(arrival, tw_open))
-                
-                # can I arrive at nc_tw_open exactly? If yes, wait until right time 
-                # to depart in order to arrive at nc_tw_open
-                if nc_tw_open - travel_time >= start + service_time:
-                    #end = nc_tw_open - travel_time + service_time
-                    end = start + service_time
-                elif start + service_time + travel_time <= nc_tw_close:
-                    end = start + service_time #leave as soon as possible
+                    if current_cust == 0:
+                        start = 0 #for depot start from 0
+                        service_time = 0
+                    elif current_cust != 0:
+                        start = max(tw_open, self.speed_f * self.distances[0][current_cust])
+                    #start = 0
+                    #arrival = travel_time
                 else:
+                    start = int(max(arrival, tw_open))
+
+                if start > tw_close:
                     print(f"    DEBUG: failed on tour: {tour} at index {i}")
+                    print(f"    current_cust: {current_cust}")
+                    print(f"    next_cust: {next_cust}")
                     print(f"    start: {start}")
                     print(f"    end: {end}")
                     print(f"    arrival: {arrival}")
-                    print(f"    travel_time: {travel_time}")
+                    print(f"    tw_open: {tw_open}")
+                    print(f"    tw_close: {tw_close}")
                     print(f"    nc_tw_open: {nc_tw_open}")
                     print(f"    nc_tw_close: {nc_tw_close}")
+                    print(f"    travel_time: {travel_time}")
                     print(f"    service_time: {service_time}")
                     print(f"    schedule: {schedule}")
+                    print(f"    DEBUG: time_window:")
+                    for j, el in enumerate(self.time_window):
+                        print(f"    {j}, {el}")
                     raise ValueError 
+
+                end = start + service_time
                 schedule.append([int(start), int(end)])
                 arrival = end + travel_time
-
+                
             last_cust = tour[-1][0]
             tw_open, tw_close = self.time_window[last_cust]
             travel_time = self.speed_f * self.distances[current_cust][last_cust]
