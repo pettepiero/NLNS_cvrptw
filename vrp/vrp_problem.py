@@ -527,9 +527,17 @@ class VRPInstance():
         i = 1
         destroyed_location_idx = []
 
+        #print(f"DEBUG: incomplete_tours | IDs")
+        #for j, el in enumerate(self.incomplete_tours):
+        #    print(el, id(el))
+        #print(f"DEBUG: solution | IDs")
+        #for j, el in enumerate(self.solution):
+        #    print(el, id(el))
+
         incomplete_tours = self.incomplete_tours
         for tour in incomplete_tours:
             # Create an input for a tour consisting of a single customer
+            #print(f"DEBUG: i={i}, tour: {tour}")
             if len(tour) == 1:
                 nn_input[i, :2] = self.locations[tour[0][0]]
                 nn_input[i, 2] = self.time_window[tour[0][0]][0] / self.max_time
@@ -939,6 +947,13 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
             #fw_mask = get_forward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
             fw_mask = get_forward_mask(idx_from, float(tw_open), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
             time_feasible[i] = bw_mask | fw_mask
+
+            #in_time_to_return = get_return_mask(idx_from, float(tw_open), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
+
+            # Now check that depot can be reached in time too (in time to return to depot)
+            #time_feasible[i] = time_feasible[i] & in_time_to_return
+
+
             # set twin tour of length 1 to False
             cust = origin_tour[0][0]
             if cust != 0:

@@ -263,7 +263,7 @@ class test_get_mask(unittest.TestCase):
         inst.demand[1] = inst.capacity -1
         print(f"\n\t...done")
         print(f"\n\tNew demands:")
-        print(f"\t ID", "d")
+        print(f"\t ID |", "d")
         print(f"\t-------")
         for j, el in enumerate(inst.demand):
             print('\t', j, '|', el)
@@ -288,7 +288,11 @@ class test_get_mask(unittest.TestCase):
         origin_idx = 2
         print(f"\n\tChosing origin_idx: {origin_idx}")
         input_size = inst.get_max_nb_input_points()
+        print(f"\n\tCalling inst.get_network_input():")
         static_np, _dynamic_np = inst.get_network_input(input_size)
+        print(f"\n\tInstance solution:")
+        for el in inst.solution:
+            print('\t', el)
         print(f"\n\tDEBUG: inst.nn_input_idx_to_tour:")
         for j, el in enumerate(inst.nn_input_idx_to_tour):
             if j != origin_idx:
@@ -298,10 +302,11 @@ class test_get_mask(unittest.TestCase):
         print(f"\n\torigin_idx={origin_idx} corresponds to open tour:")
         print('\t', inst.nn_input_idx_to_tour[origin_idx][0])
         print(f"\n\tSchedule with incomplete tour of nn_input at index {origin_idx}:")
-        print(f"Instance solution:")
-        for j, el in enumerate(inst.solution):
-            print(j, el)
-        sched = inst.schedule[inst.solution.index(inst.nn_input_idx_to_tour[origin_idx][0])]
+        print(f"\n\tLooking for {inst.nn_input_idx_to_tour[origin_idx][0]} in instance solution:")
+        for el in inst.solution:
+            print('\t', el)
+        #sched = inst.schedule[inst.solution.index(inst.nn_input_idx_to_tour[origin_idx][0])]
+        sched = inst.schedule[inst.get_idx_in_solution(inst.nn_input_idx_to_tour[origin_idx][0], inst.nn_input_idx_to_tour[origin_idx][1])]
         
         pos = inst.nn_input_idx_to_tour[origin_idx][1]
         print('\t', sched) 
@@ -341,18 +346,19 @@ class test_get_mask(unittest.TestCase):
                 time            = dynamic_input_last_dim[0][origin_idx][-1].item(),
                 travel_times    = travel_time_norm[0],
                 inst            = inst,
-                tw_open         = static_np[0, :, 2])
+                tw              = static_np[0, :, 2])
         else:
             time_mask = get_forward_mask(
                 origin_idx      = origin_idx,
                 time            = dynamic_input_last_dim[0][origin_idx][-1].item(),
                 travel_times    = travel_time_norm[0],
                 inst            = [inst],
-                tw_open         = static_np[0, :, 3])
+                tw              = static_np[0, :, 3])
         print(f"\n\t...done.")
         #handmade capacity mask 
         handmade_capacity_mask = torch.ones(len(custs_to_test), dtype=bool, device=self.config.device)
 
+        print(f"\n\tComputing handmade_capacity_mask:")
         current_demand = sum([l[1] for l in current_tour])
         print(f"\n\tCurrent demand: {current_demand}")
         print(f"\tVehicle capacity: {inst.capacity}")
@@ -362,9 +368,17 @@ class test_get_mask(unittest.TestCase):
             print(f"\t{tour} | d = {sum([l[1] for l in tour])}")
             handmade_capacity_mask[j] = d + current_demand <= inst.capacity
        
-        print(f"\n\tDEBUG: handmade_capacity_mask: {handmade_capacity_mask}")
-
         handmade_mask = handmade_capacity_mask & time_mask
+        #set twin_tour of tour end of lenght one to False
+        if len(current_tour) == 1: 
+            cust = current_tour[0][0]
+            if cust != 0:
+                if inst.nn_input_idx_to_tour[origin_idx - 1][0][0][0] == cust:
+                    handmade_mask[origin_idx - 1] = False
+                elif inst.nn_input_idx_to_tour[origin_idx + 1][0][0][0] == cust:
+                    handmade_mask[origin_idx + 1] = False
+            
+        print(f"\n\tDEBUG: handmade_mask: {handmade_mask}")
 
         mask = get_mask(
                 origin_nn_input_idx = torch.tensor([origin_idx]),
@@ -375,7 +389,8 @@ class test_get_mask(unittest.TestCase):
                 capacity            = inst.capacity)
         print(f"\n\t\tDEBUG: mask: {mask}")
         for i in range(len(mask[0])):
-            print('\t', f"DEBUG: mask[0][i] = {mask[0][i]} | handmade_mask[i] = {handmade_mask[i]}")
+            print('\t', f"index {i} is masking tour_end: {inst.nn_input_idx_to_tour[i]}", f"DEBUG: mask[0][i] = {mask[0][i]} | handmade_mask[i] = {handmade_mask[i]}")
+            #print('\t', f"DEBUG: mask[0][i] = {mask[0][i]} | handmade_mask[i] = {handmade_mask[i]}")
             self.assertEqual(mask[0][i], handmade_mask[i])
         print(f"... finished test_get_mask()")
 
