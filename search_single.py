@@ -103,6 +103,16 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
     instance = read_instance(instance_path, pkl_instance_id)
     instance.create_initial_solution()
 
+    print(f"\n\nDEBUG: created initial_solution: ")
+    for j, el in enumerate(instance.solution):
+        print(j, el)
+    print(f"DEBUG: instance.schedule: ")
+    for j, el in enumerate(instance.schedule):
+        print(j, el)
+    print(f"DEBUG: instance.time_window: ")
+    for j, el in enumerate(instance.time_window):
+        print(j, el)
+
     if plot_sol: # plot initial solution
         sol = vrp_to_plot_solution(instance)
         data = pyvrp_read(instance_path) 

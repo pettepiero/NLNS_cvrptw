@@ -27,4 +27,3 @@ class TW_tests(unittest.TestCase):
                     [0.65409717, 0.45940834],
                     [0.2664566 , 0.76469668]])
      
-    def test_get_distances_matrix(self):
