@@ -19,13 +19,18 @@ class LnsOperatorPair:
 
 
 def destroy_instances(rng, instances, destroy_procedure=None, destruction_p=None):
-    for instance in instances:
+    for j, instance in enumerate(instances):
+        #print(f"DEBUG: destroying instance {j}")
         if destroy_procedure == "R":
             instance.destroy_random(destruction_p, rng=rng)
         elif destroy_procedure == "P":
             instance.destroy_point_based(destruction_p, rng=rng)
         elif destroy_procedure == "T":
-            instance.destroy_tour_based(destruction_p, rng=rng)
+            if j == 0:
+                print_debug=True
+            else:
+                print_debug=False
+            instance.destroy_tour_based(destruction_p, rng=rng, print_debug=print_debug)
 
 
 def load_operator_pairs(path, config):

@@ -94,6 +94,7 @@ ap.add_argument('--lns_reheating_nb', default=5, type=int, help="Number of rehea
 ap.add_argument('--lns_Z_param', default=0.8, type=float, help="What percentage of the search focuses on generating neighbouring solution. See NLNS paper (expressed between 0 and 1)")
 ap.add_argument('--lns_nb_cpus', default=1, type=int, help="How many instances compose the search batch B in single instance search") 
 ap.add_argument('--wandb', action='store_true', help="If set, sends logs to wandb")
+ap.add_argument('--seed', default=None, type=int, help="Seed for reproducibility for NLNS model (not PyVRP)")
 
 #plots
 ap.add_argument('--plot_sol', action='store_true', default=False, help="If set, plots PyVRP sol and NLNS final and initial sol")
@@ -228,6 +229,7 @@ cmd_nlns = [
     "--lns_nb_cpus",            str(args.lns_nb_cpus),
     "--plot_sol",               str(args.plot_sol),
     "--pointer_hidden_size",    str(args.pointer_hidden_size),
+    "--seed",                   str(args.seed),
     ]
 
 logging.debug(f"NLNS command: {cmd_nlns}")

@@ -241,7 +241,7 @@ class VRPInstance():
             sum_late_mins += self.get_late_mins_tour(t, s)
         return sum_late_mins 
 
-    def destroy(self, customers_to_remove_idx):
+    def destroy(self, customers_to_remove_idx, print_debug=False):
         """Remove the customers with the given idx from their tours. This creates an incomplete solution."""
         self.incomplete_tours = []
         self.incomplete_schedules = []
@@ -250,6 +250,8 @@ class VRPInstance():
 
         removed_customer_idx = []
 
+        if print_debug:
+            print(f"\n\t\t In destroy: customers_to_remove: {customers_to_remove}")
         for tour_idx, tour in enumerate(self.solution):
             assert len(self.schedule) == len(self.solution)
             last_split_idx = 0
@@ -310,6 +312,8 @@ class VRPInstance():
             current_cust = None
             arrival = None
             start = None
+            print(f"\n\nIn compute_tour_schedule:")
+            print(f"tour: {tour}")
             for i in range(len(tour) -1):
                 service_time = self.service_time
                 end = None
@@ -318,19 +322,28 @@ class VRPInstance():
                 travel_time = int(self.speed_f * self.distances[current_cust][next_cust])
                 tw_open, tw_close = self.time_window[current_cust]
                 nc_tw_open, nc_tw_close = self.time_window[next_cust]
+                print(f"DEBUG: i = {i} | current_cust = {current_cust} | next_cust = {next_cust}")
+                print(f"DEBUG: travel_time = {travel_time}")  
+                print(f"DEBUG: self.time_window[{current_cust}] = {self.time_window[current_cust]}")
+                print(f"DEBUG: self.time_window[{next_cust}] = {self.time_window[next_cust]}")
                 if i == 0:
                     if current_cust == 0:
                         start = 0 #for depot start from 0
                         service_time = 0
                     elif current_cust != 0:
+                        print(f"DEBUG: tw_open: {tw_open} vs dist from depot: {self.speed_f * self.distances[0][current_cust]}")
                         start = max(tw_open, self.speed_f * self.distances[0][current_cust])
                     #start = 0
                     #arrival = travel_time
                 else:
                     start = int(max(arrival, tw_open))
+                print(f"DEBUG: start: {start} | service_time: {service_time}")
 
                 if start > tw_close:
                     print(f"    DEBUG: failed on tour: {tour} at index {i}")
+                    print(f"    DEBUG: solution:")
+                    for el in self.solution:
+                        print(f"     {el}")
                     print(f"    current_cust: {current_cust}")
                     print(f"    next_cust: {next_cust}")
                     print(f"    start: {start}")
@@ -349,8 +362,11 @@ class VRPInstance():
                     raise ValueError 
 
                 end = start + service_time
+                print(f"DEBUG: end = {end}")
                 schedule.append([int(start), int(end)])
+                print(f"DEBUG: updated schedule: {schedule}")
                 arrival = end + travel_time
+                print(f"DEBUG: arrival = {arrival} \n")
                 
             last_cust = tour[-1][0]
             tw_open, tw_close = self.time_window[last_cust]
@@ -409,9 +425,11 @@ class VRPInstance():
         closest_customers_idx = np.argsort(dist)[:nb_customers_to_remove] + 1
         self.destroy(closest_customers_idx)
 
-    def destroy_tour_based(self, p, rng):
+    def destroy_tour_based(self, p, rng, print_debug=False):
         """Tour based destroy. Remove all tours closest to a randomly selected point from a solution."""
         # Make a dictionary that maps customers to tours
+        if print_debug:
+            print(f"\n\t\tDEBUG: in destroy_tour_based:")
         customer_to_tour = {}
         for i, tour in enumerate(self.solution[1:]):
             for e in tour[1:-1]:
@@ -441,13 +459,28 @@ class VRPInstance():
             if nb_removed_customers >= nb_customers_to_remove and len(tours_to_remove_idx) > 1:
                 break
 
+        if print_debug:
+            print(f"\t\tDEBUG: tours_to_remove_idx: {tours_to_remove_idx}")
+            for j in tours_to_remove_idx:
+                print('\t\t', self.solution[j])
+            print(f"\t\tBefore destruction:")
+            print(f"\t\tSolution:")
+            for j, el in enumerate(self.solution):
+                print('\t\t', j, el)
+            print(f"\t\tSchedule:")
+            for j, el in enumerate(self.schedule):
+                print('\t\t', j, el)
+
+            
         # Create the new tours that all consist of only a single customer
         new_tours = []
         new_schedules = []
         removed_customer_idx = []
         for i in tours_to_remove_idx:
             tour = self.solution[i]
+            print(f"\t\tDoing tour: {tour}")
             for e in tour[1:-1]:
+                print(f"\t\t\tDoing e {e}")
                 #if e[0] in removed_customer_idx:
                 #    for new_tour in new_tours:
                 #        if new_tour[0][0] == e[0]:
@@ -459,8 +492,13 @@ class VRPInstance():
                 #    new_schedules.append([[time, time + self.service_time]]) 
                 #    removed_customer_idx.append(e[0])
                 new_tours.append([e])
-                time = int(max(0, self.time_window[e[0]][0] - self.speed_f*self.distances[0][e[0]]))
-                new_schedules.append([[time, time + self.service_time]]) 
+                print(f"\t\t\tupdated new_tours: {new_tours}")
+                print(f"\t\t\t self.time_window[e[0]][0]: {self.time_window[e[0]][0]}")
+                print(f"\t\t\t self.speed_f*self.distances[0][e[0]]: {self.speed_f*self.distances[0][e[0]]}")
+                #time = int(max(0, self.time_window[e[0]][0] - self.speed_f*self.distances[0][e[0]]))
+                #print(f"\t\t\ttime: {time}")
+                #new_schedules.append([[time, time + self.service_time]]) 
+                new_schedules.append([[self.time_window[e[0]][0].item(), self.time_window[e[0]][1].item()]]) 
                 removed_customer_idx.append(e[0])
 
         # Remove the tours that are marked for removal from the solution
@@ -472,6 +510,17 @@ class VRPInstance():
         self.schedule.extend(new_schedules)
         self.incomplete_tours = new_tours
         self.incomplete_schedules = [self.compute_tour_schedule(tour) for tour in self.incomplete_tours]
+
+        
+        if print_debug:
+            print(f"\t\tAfter destruction:")
+            print(f"\t\tSolution:")
+            for j, el in enumerate(self.solution):
+                print('\t\t', j, el)
+            print(f"\t\tSchedule:")
+            for j, el in enumerate(self.schedule):
+                print('\t\t', j, el)
+
                  
     def _get_incomplete_tours(self):
         incomplete_tours = []
@@ -839,6 +888,8 @@ class VRPInstance():
 
     def get_last_dim(self, static_input, origin_idx, print_debug=False):
         # (N, 2) coords in NN-input space
+        if print_debug:
+            print(f"\nDEBUG: in get_last_dim: (origin_idx = {origin_idx})")
         coords      = static_input[:, :2]
         origin_xy   = coords[origin_idx]  # (2,)
         distances   = torch.sqrt(((coords - origin_xy) ** 2).sum(dim=-1))  # (N,)
@@ -849,9 +900,29 @@ class VRPInstance():
         prev_t = [[0, 0, None]] 
         current_pos = self.nn_input_idx_to_tour[origin_idx][1]
         #for j in range(n):
+        if print_debug:
+            print(f"\tDEBUG: solution")
+            for j, el in enumerate(self.solution):
+                print('\t', j, el)
+            print(f"\tDEBUG: schedule")
+            for j, el in enumerate(self.schedule):
+                print('\t', j, el)
+            print(f"\tDEBUG: time_window")
+            for j, el in enumerate(self.time_window):
+                print('\t', j, el)
         for j in self.open_nn_input_idx:
             t, pos = self.nn_input_idx_to_tour[j]
             idx = self.get_idx_in_solution(t, pos)
+            if print_debug:
+                if j == origin_idx:
+                    print(f"\t -> Doing index {j} | {t} | {pos}")
+                    print(f"\t    index in solution: {idx}")
+                    print(f"\t    schedule: {self.schedule[idx]}")
+                else:
+                    print(f"\t    Doing index {j} | {t} | {pos}")
+                    print(f"\t    index in solution: {idx}")
+                    print(f"\t    schedule: {self.schedule[idx]}")
+
 
             if (len(prev_t) == len(t)) and (prev_t[0][0] == t[0][0]) and (t[0][0] != 0):
                 if current_pos == 0:
@@ -866,8 +937,24 @@ class VRPInstance():
 
             prev_t = t
 
+        if print_debug:
+            print(f"\tDEBUG: current_times before scaling:")
+            for j, el in enumerate(current_times):
+                if j != origin_idx:
+                    print('\t  ', j, el)
+                else:
+                    print('\t->', j ,el)
+        
         #scale down current_time to 0,1
         current_time_norm = current_times / self.max_time 
+
+        if print_debug:
+            print(f"\tDEBUG: current_time_norm:")
+            for j, el in enumerate(current_time_norm):
+                if j != origin_idx:
+                    print('\t  ', j, el)
+                else:
+                    print('\t->', j ,el)
         #time_channel = current_times
         
         return torch.stack([distances, current_time_norm], dim=-1)
@@ -900,22 +987,33 @@ class VRPInstance():
     #    return arrival_at_target <= latest_arrival
 
 
-def get_forward_mask(origin_idx, time, travel_times, inst, tw):
-    assert isinstance(time, float)
-    assert len(travel_times) == len(tw)
-    time = torch.tensor(time, device=travel_times.device).unsqueeze(-1)
-    arrival_times = time + travel_times + (inst.service_time)/inst.max_time
+def get_forward_mask(origin_idx, scaled_time, scaled_travel_times, inst, tw):
+    assert isinstance(scaled_time, float)
+    assert len(scaled_travel_times) == len(tw)
+    print(f"\tDEBUG: in get_forward_mask()")
+    print(f"\tDEBUG: scaled_travel_times: {scaled_travel_times}")
+    scaled_time = torch.tensor(scaled_time, device=scaled_travel_times.device).unsqueeze(-1)
+    print(f"\tDEBUG: scaled_time: {scaled_time} | inst.service_time/inst.max_time: {inst.service_time/inst.max_time}")
+    arrival_times = scaled_time + scaled_travel_times + (inst.service_time)/inst.max_time
+    print(f"\tDEBUG: arrival_times: {arrival_times}")
     mask = arrival_times <= tw
+    print(f"\tDEBUG: mask: {mask}")
     mask[origin_idx] = False
 
     return mask
     
-def get_backward_mask(origin_idx, time, travel_times, inst, tw):
-    assert isinstance(time, float)
-    assert len(travel_times) == len(tw)
-    time = torch.tensor(time, device=travel_times.device).unsqueeze(-1)
-    arrival_times = time - travel_times - (inst.service_time)/inst.max_time
+def get_backward_mask(origin_idx, scaled_time, scaled_travel_times, inst, tw):
+    assert isinstance(scaled_time, float)
+    assert len(scaled_travel_times) == len(tw)
+    print(f"\tDEBUG: in get_backward_mask()")
+    print(f"\tDEBUG: scaled_travel_times: {scaled_travel_times}")
+    scaled_time = torch.tensor(scaled_time, device=scaled_travel_times.device).unsqueeze(-1)
+    print(f"\tDEBUG: scaled_time: {scaled_time} | inst.service_time/inst.max_time: {inst.service_time/inst.max_time}")
+    arrival_times = scaled_time - scaled_travel_times - (inst.service_time)/inst.max_time
+    print(f"\tDEBUG: arrival_times: {arrival_times}")
+    print(f"\tDEBUG: tw: {tw}")
     mask = tw <= arrival_times 
+    print(f"\tDEBUG: mask: {mask}")
     mask[origin_idx] = False
     
     return mask
@@ -941,12 +1039,20 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
         idx_from = origin_nn_input_idx[i].item()
         origin_tour, origin_pos = instances[i].nn_input_idx_to_tour[idx_from]
         if len(origin_tour) == 1:
+            print(f"DEBUG: in get_mask, considering origin_tour: {origin_tour}")
+            print(f"DEBUG: instances[i].nn_input_idx_to_tour:")
+            for el in instances[i].nn_input_idx_to_tour:
+                print(el)
             tw_open, tw_close = instances[i].time_window[origin_tour[0][0]]
+            print(f"DEBUG: tw_open = {tw_open} | tw_close = {tw_close}")
             #bw_mask = get_backward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
-            bw_mask = get_backward_mask(idx_from, float(tw_close), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
+            bw_mask = get_backward_mask(idx_from, float(tw_close/max_time[i].item()), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
+            print(f"DEBUG: bw_mask = {bw_mask} ")
             #fw_mask = get_forward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
-            fw_mask = get_forward_mask(idx_from, float(tw_open), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
+            fw_mask = get_forward_mask(idx_from, float(tw_open/max_time[i].item()), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
+            print(f"DEBUG: fw_mask = {fw_mask} ")
             time_feasible[i] = bw_mask | fw_mask
+            print(f"DEBUG: time_feasible = {time_feasible} ")
 
             #in_time_to_return = get_return_mask(idx_from, float(tw_open), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
 

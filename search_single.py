@@ -21,7 +21,7 @@ def lns_single_seach_job(args):
         instance = read_instance(instance_path, pkl_instance_id)
 
         T_min = config.lns_t_min
-        rng = np.random.default_rng(id)
+        #rng = np.random.default_rng(id)
 
         # Repeat until the process is terminated
         while True:
@@ -35,6 +35,7 @@ def lns_single_seach_job(args):
 
             # Create a batch of copies of the same instances that can be repaired in parallel
             instance_copies = [deepcopy(instance) for _ in range(config.lns_batch_size)]
+            print(f"DEBUG: copied {config.lns_batch_size} times")
 
             iter = -1
             # Repeat until the time limit of one reheating iteration is reached
@@ -47,16 +48,19 @@ def lns_single_seach_job(args):
                     instance_copies[i] = deepcopy(instance)
 
                 # Select an LNS operator pair (destroy + repair operator)
-                selected_operator_pair_id = np.random.randint(0, len(operator_pairs))
+                #selected_operator_pair_id = np.random.randint(0, len(operator_pairs))
+                selected_operator_pair_id = rng.integers(0, len(operator_pairs))
                 actor = operator_pairs[selected_operator_pair_id].model
                 destroy_procedure = operator_pairs[selected_operator_pair_id].destroy_procedure
                 p_destruction = operator_pairs[selected_operator_pair_id].p_destruction
 
                 # Destroy instances
+                print(f"DEBUG: destroying instances with destruction procedure: {destroy_procedure}")
                 search.destroy_instances(rng, instance_copies, destroy_procedure, p_destruction)
 
                 # Repair instances
                 for i in range(int(len(instance_copies) / config.lns_batch_size)):
+                    print(f"DEBUG: repairing instance {i}")
                     with torch.no_grad():
                         repair.repair(
                             instance_copies[i * config.lns_batch_size: (i + 1) * config.lns_batch_size], actor, config)
@@ -83,7 +87,8 @@ def lns_single_seach_job(args):
                     T_factor * (time.time() - start_time_reheating) / (config.lns_timelimit / config.lns_reheating_nb))
 
                 # Accept a solution if the acceptance criteria is fulfilled
-                if min_costs <= cur_cost or np.random.rand() < math.exp(-(min(costs) - cur_cost) / T):
+                #if min_costs <= cur_cost or np.random.rand() < math.exp(-(min(costs) - cur_cost) / T):
+                if min_costs <= cur_cost or rng.random() < math.exp(-(min(costs) - cur_cost) / T):
                     instance.solution = instance_copies[np.argmin(costs)].solution
                     instance.schedule = [[x[:] for x in tour_sched] for tour_sched in instance_copies[np.argmin(costs)].schedule]
                     cur_cost = min_costs
@@ -131,6 +136,7 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
     queue_jobs = m.Queue()
     queue_results = m.Queue()
     pool = Pool(processes=config.lns_nb_cpus)
+    print(f"\nDEBUG: pool size: {config.lns_nb_cpus}")
     pool.map_async(lns_single_seach_job,
                    [(i, config, instance_path, model_path, queue_jobs, queue_results, pkl_instance_id) for i in
                     range(config.lns_nb_cpus)])

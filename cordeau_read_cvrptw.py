@@ -92,7 +92,7 @@ def _parse_cordeau_vrptw_node_line(line: str) -> Tuple[int, float, float, float,
     return i, x, y, d, q, 0.0, 0.0
 
 
-def convert_cordeau_to_vrplib(input_path: str, output_path: str | None = None) -> str:
+def convert_cordeau_to_vrplib(input_path: str, output_path: str=None) -> str:
     """Convert a *Cordeau CVRPTW* instance (type=4) to a VRPLIB VRPTW file.
 
     Cordeau requirements enforced:
@@ -235,7 +235,7 @@ def convert_cordeau_to_vrplib(input_path: str, output_path: str | None = None) -
     return output_path
 
 
-def convert_vrplib_to_cordeau(input_path: str, output_path: str | None = None) -> str:
+def convert_vrplib_to_cordeau(input_path: str, output_path: str = None) -> str:
     """Convert a VRPLIB VRPTW instance into a Cordeau CVRPTW (type=4) text file.
 
     Supported VRPLIB assumptions:
