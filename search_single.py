@@ -75,8 +75,9 @@ def lns_single_seach_job(args):
                 if iter == 0:
                     q75, q25 = np.percentile(costs, [75, 25])
                     T_max = q75 - q25
+                    print(f"DEBUG: costs: {costs}")
+                    print(f"DEBUG: T_max : {T_max}  | T_min: {T_min}")
                     T_factor = -math.log(T_max / T_min)
-                    #print("tmax", T_max)
 
                 min_costs = min(costs)
 

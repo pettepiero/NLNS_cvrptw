@@ -301,6 +301,8 @@ class VRPInstance():
         self.solution = st
         self.schedule = sc
 
+        self._check_sol_sched_alignment()
+
     def compute_tour_schedule(self, tour):
         if len(tour) == 1:
             cust = tour[0][0]
@@ -375,6 +377,8 @@ class VRPInstance():
             return None
 
 
+    
+
     #def compute_tour_schedule(self, tour):
     #    schedule = []
     #    depart_time_current = 0
@@ -418,6 +422,7 @@ class VRPInstance():
 
     def destroy_tour_based(self, p, rng):
         """Tour based destroy. Remove all tours closest to a randomly selected point from a solution."""
+        self._check_sol_sched_alignment()
         # Make a dictionary that maps customers to tours
         customer_to_tour = {}
         for i, tour in enumerate(self.solution[1:]):
@@ -473,12 +478,15 @@ class VRPInstance():
                 removed_customer_idx.append(e[0])
 
         # Remove the tours that are marked for removal from the solution
+        print(f"DEBUG: tours_to_remove_idx: {tours_to_remove_idx}")
         for index in sorted(tours_to_remove_idx, reverse=True):
-            if len(self.solution) <= index:
-                print(f"DEBUG: tours_to_remove_idx: {tours_to_remove_idx}")
-                print(f"DEBUG: self.solution:")
-                for j, el in enumerate(self.solution):
-                    print(j, el)
+            print(f"DEBUG: removing index: {index}")
+            print(f"DEBUG: self.solution:")
+            for j, el in enumerate(self.solution):
+                print(j, el)
+            print(f"DEBUG: self.schedule:")
+            for j, el in enumerate(self.schedule):
+                print(j, el)
             del self.solution[index]
             del self.schedule[index]
 
@@ -486,8 +494,11 @@ class VRPInstance():
         self.schedule.extend(new_schedules)
         self.incomplete_tours = new_tours
         self.incomplete_schedules = [self.compute_tour_schedule(tour) for tour in self.incomplete_tours]
+        self._check_sol_sched_alignment()
         
-                 
+    def _check_sol_sched_alignment(self):
+        assert len(self.solution) == len(self.schedule)
+
     def _get_incomplete_tours(self):
         incomplete_tours = []
         for tour in self.solution:
@@ -809,7 +820,7 @@ class VRPInstance():
             #else:
             #    sc.append([[0, 0]])
         self.schedule = sc
-
+        self._check_sol_sched_alignment()
         return nn_input_update, tour_from[-1][2]
 
     def verify_solution(self, config):
@@ -876,6 +887,14 @@ class VRPInstance():
             print(f"\tDEBUG: time_window")
             for j, el in enumerate(self.time_window):
                 print('\t', j, el)
+            print('\n')
+            print(f"\tDEBUG: self.nn_input_idx_to_tour:")
+            for j, el in enumerate(self.nn_input_idx_to_tour):
+                if j in self.open_nn_input_idx:
+                    print('\t  ', j, el)
+                else:
+                    print('\tX ', j, el)
+
         for j in self.open_nn_input_idx:
             t, pos = self.nn_input_idx_to_tour[j]
             idx = self.get_idx_in_solution(t, pos)
@@ -885,28 +904,35 @@ class VRPInstance():
                     print(f"\t -> Doing index {j} | {t} | {pos}")
                     print(f"\t    index in solution: {idx}")
                     print(f"\t    schedule: {self.schedule[idx]}")
+                    print(f"\t    prev_t: {prev_t}")
                 else:
                     print(f"\t    Doing index {j} | {t} | {pos}")
                     print(f"\t    index in solution: {idx}")
                     print(f"\t    schedule: {self.schedule[idx]}")
+                    print(f"\t    prev_t: {prev_t}")
 
 
             if (len(prev_t) == len(t)) and (prev_t[0][0] == t[0][0]) and (t[0][0] != 0):
+                print(f"DEBUG: index {j} is first case")
                 if current_pos == 0:
                     current_times[j] = self.schedule[idx][pos][0]
                 else:
                     current_times[j] = self.schedule[idx][pos][1]
+                print(f"\tDEBUG: set current_times[{j}] = {current_times[j]}")
             else:
+                print(f"DEBUG: index {j} is second case")
                 if current_pos == 0:
-                    print(f"DEBUG: self.solution:")
-                    for j, el in enumerate(self.solution):
-                        print(j, el)
-                    print(f"DEBUG: self.schedule:")
-                    for j, el in enumerate(self.schedule):
-                        print(j, el)
+                    print(f"\tDEBUG: self.solution:")
+                    for k, el in enumerate(self.solution):
+                        print('\t', k, el)
+                    print(f"\tDEBUG: self.schedule:")
+                    for k, el in enumerate(self.schedule):
+                        print('\t', k, el)
                     current_times[j] = self.schedule[idx][pos][1]
+                    print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][1]: {current_times[j]}")
                 else:
                     current_times[j] = self.schedule[idx][pos][0]
+                    print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][0]: {current_times[j]}")
 
             prev_t = t
 
@@ -992,6 +1018,9 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
 
     dist_channel = dynamic_input[:, :, -2]
     time_channel = dynamic_input[:, :, -1]
+    print(f"DEBUG: dynamic_input:")
+    for j, el in enumerate(dynamic_input[:, :, -2:]):
+        print(j, el)
     speed_f = torch.tensor([ins.speed_f for ins in instances], device=device, dtype=dtype)
     max_time = torch.tensor([ins.max_time for ins in instances], device=device, dtype=dtype)
 
@@ -1003,6 +1032,21 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
         print(f"Doing instance {i}")
         idx_from = origin_nn_input_idx[i].item()
         origin_tour, origin_pos = instances[i].nn_input_idx_to_tour[idx_from]
+        print(f"DEBUG: origin_tour: {origin_tour}")
+        print(f"DEBUG: instances[i].nn_input_idx_to_tour:")
+        for j, el in enumerate(instances[i].nn_input_idx_to_tour):
+            if j in instances[i].open_nn_input_idx:
+                print('  ', j, el)
+            else:
+                print('X ', j, el)
+        print(f"DEBUG: time_channel[i]:")
+        for j, el in enumerate(time_channel[i]):
+            if j != idx_from:
+                print('  ', j, el)
+            else:
+                print('->', j, el)
+
+        
         if len(origin_tour) == 1:
             scaled_tw_open, scaled_tw_close = instances[i].time_window[origin_tour[0][0]]/instances[i].max_time
 
@@ -1029,6 +1073,22 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
                     bw_mask[index] = False
             else:
                 print(f"\n\nDEBUG: got time_channel[i][idx_from]: {time_channel[i][idx_from]} and scaled_tw_open = {scaled_tw_open} | scaled_tw_close = {scaled_tw_close}")
+                print(f"\n\nDEBUG: idx_from: {idx_from}")
+                print(f"DEBUG: time_channel[i]")
+                for j, el in enumerate(time_channel):
+                    print(j, el)
+                for j, el in enumerate(instances[i].nn_input_idx_to_tour):
+                    if j == idx_from:
+                        print(f"->", j, el)
+                    else:
+                        print("  ", j, el)
+                print(f"\nDEBUG: instances[i].solution")
+                for j, el in enumerate(instances[i].solution):
+                    print(j, el)
+                print(f"\nDEBUG: instances[i].schedule")
+                for j, el in enumerate(instances[i].schedule):
+                    print(j, el)
+
                 raise ValueError
 
             #bw_mask = get_backward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 

@@ -26,12 +26,14 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
                     origin_idx[i] = np.random.choice(instance.open_nn_input_idx, 1).item()
                 else:
                     origin_idx[i] = rng.choice(instance.open_nn_input_idx, 1).item()
-            last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i], print_debug=False)
+            last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i], print_debug=True)
 
         # Rescale customer demand based on vehicle capacity
         dynamic_input_last_dim = torch.cat((dynamic_input, last_dim), dim=-1)
         origin_cust = instances[0].nn_input_idx_to_tour[origin_idx[0]][0][instances[0].nn_input_idx_to_tour[origin_idx[0]][1]][0]
          
+        print(f"DEBUG: in _actor_model_forward: dynamic_input_last_dim:")
+        print(dynamic_input_last_dim)
         mask, invert_connection = vrp_problem.get_mask(origin_idx, static_input, dynamic_input_last_dim, instances, config, vehicle_capacity)
         mask = mask.to(config.device).float()
         # mask: (batch, N) float/bool-like
@@ -83,7 +85,9 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
             #log.info(f"\t Number of possible actions: {[int(sum(l).item()) for l in mask]}")
             if idx_from == 0 and idx_to == 0:  # No need to update in this case
                 continue
+            instance._check_sol_sched_alignment()
             nn_input_update, cur_nn_input_idx = instance.do_action(idx_from, idx_to, False)  # Connect origin to select point
+            instance._check_sol_sched_alignment()
             for s in nn_input_update:
                 s.insert(0, i)
                 nn_input_updates.append(s)
