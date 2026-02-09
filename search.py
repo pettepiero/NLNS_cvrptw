@@ -26,11 +26,8 @@ def destroy_instances(rng, instances, destroy_procedure=None, destruction_p=None
         elif destroy_procedure == "P":
             instance.destroy_point_based(destruction_p, rng=rng)
         elif destroy_procedure == "T":
-            if j == 0:
-                print_debug=True
-            else:
-                print_debug=False
-            instance.destroy_tour_based(destruction_p, rng=rng, print_debug=print_debug)
+            print_debug=False
+            instance.destroy_tour_based(destruction_p, rng=rng)
 
 
 def load_operator_pairs(path, config):

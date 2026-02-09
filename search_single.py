@@ -34,6 +34,12 @@ def lns_single_seach_job(args):
             start_time_reheating = time.time()
 
             # Create a batch of copies of the same instances that can be repaired in parallel
+            print(f"\n\n******************************************************************************")
+            print(f"******************************************************************************")
+            print(f"******************************************************************************")
+            print(f"SETTING config.lns_batch_size to 2 for DEBUGging purposes\n\n")
+            config.lns_batch_size = 2
+
             instance_copies = [deepcopy(instance) for _ in range(config.lns_batch_size)]
             print(f"DEBUG: copied {config.lns_batch_size} times")
 
@@ -55,12 +61,10 @@ def lns_single_seach_job(args):
                 p_destruction = operator_pairs[selected_operator_pair_id].p_destruction
 
                 # Destroy instances
-                print(f"DEBUG: destroying instances with destruction procedure: {destroy_procedure}")
                 search.destroy_instances(rng, instance_copies, destroy_procedure, p_destruction)
 
                 # Repair instances
                 for i in range(int(len(instance_copies) / config.lns_batch_size)):
-                    print(f"DEBUG: repairing instance {i}")
                     with torch.no_grad():
                         repair.repair(
                             instance_copies[i * config.lns_batch_size: (i + 1) * config.lns_batch_size], actor, config)
@@ -107,16 +111,6 @@ def lns_single_seach_job(args):
 def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_instance_id=None, plot_sol=False):
     instance = read_instance(instance_path, pkl_instance_id)
     instance.create_initial_solution()
-
-    print(f"\n\nDEBUG: created initial_solution: ")
-    for j, el in enumerate(instance.solution):
-        print(j, el)
-    print(f"DEBUG: instance.schedule: ")
-    for j, el in enumerate(instance.schedule):
-        print(j, el)
-    print(f"DEBUG: instance.time_window: ")
-    for j, el in enumerate(instance.time_window):
-        print(j, el)
 
     if plot_sol: # plot initial solution
         sol = vrp_to_plot_solution(instance)

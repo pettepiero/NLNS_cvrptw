@@ -26,43 +26,12 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
                     origin_idx[i] = np.random.choice(instance.open_nn_input_idx, 1).item()
                 else:
                     origin_idx[i] = rng.choice(instance.open_nn_input_idx, 1).item()
-            if i != 0:
-                last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i], print_debug=False)
-            else:
-                last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i], print_debug=True)
-                print(f"RETURNED: last_dim[i]: {last_dim[i]}")
+            last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i], print_debug=False)
 
         # Rescale customer demand based on vehicle capacity
         dynamic_input_last_dim = torch.cat((dynamic_input, last_dim), dim=-1)
-        print(f"\nDEBUG: for instance 0:")
-        print(f"instances[0].solution:")
-        for el in instances[0].solution:
-            print(el)
-        print(f"instances[0].schedule:")
-        for el in instances[0].schedule:
-            print(el)
-        print(f"instances[0].nn_input_idx_to_tour:")
-        for j, el in enumerate(instances[0].nn_input_idx_to_tour):
-            print(el)
-        print(f"origin_idx[0]: {origin_idx[0]}")
-        print(f"origin_tour: {instances[0].nn_input_idx_to_tour[origin_idx[0]][0]}")
-        print(f"origin_pos: {instances[0].nn_input_idx_to_tour[origin_idx[0]][1]}")
         origin_cust = instances[0].nn_input_idx_to_tour[origin_idx[0]][0][instances[0].nn_input_idx_to_tour[origin_idx[0]][1]][0]
-        print(f"origin_cust: {origin_cust}")
-        print(f"origin_cust locations: {instances[0].locations[origin_cust]}")
-        print(f"origin_cust scaled time_window: {instances[0].time_window[origin_cust]/instances[0].max_time}")
-        print(f"origin_cust time_window: {instances[0].time_window[origin_cust]}")
-        print(f"origin_cust demand: {instances[0].demand[origin_cust]}")
          
-
-        print(f"DEBUG: torch.cat(static_input, dynamic_input_last_dim, dim=-1)")
-        for j, el in enumerate(torch.cat((static_input, dynamic_input_last_dim), dim=-1)[0]):
-            if j != origin_idx[0]:
-                print('  ',j, el)
-            else:
-                print('->', j, el)
-        del origin_cust
-
         mask, invert_connection = vrp_problem.get_mask(origin_idx, static_input, dynamic_input_last_dim, instances, config, vehicle_capacity)
         mask = mask.to(config.device).float()
         # mask: (batch, N) float/bool-like
@@ -114,28 +83,7 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
             #log.info(f"\t Number of possible actions: {[int(sum(l).item()) for l in mask]}")
             if idx_from == 0 and idx_to == 0:  # No need to update in this case
                 continue
-            if i == 0:
-                print_debug = True 
-            else:
-                print_debug = False
-            print_debug = True
-            if print_debug:
-                print(f"\nDEBUG: instance: {i}")
-                print(f"DEBUG: instance.solution:")
-                for k, el in enumerate(instance.solution):
-                    print(k, el)
-                print(f"DEBUG: instance.schedule:")
-                for k, el in enumerate(instance.schedule):
-                    print(k, el)
-                print(f"DEBUG: instance.nn_input_idx_to_tour:")
-                for k, el in enumerate(instance.nn_input_idx_to_tour):
-                    if k in instance.open_nn_input_idx:
-                        print(' ', k, el)
-                    else:
-                        print('X', k, el)
-                print(f"DEBUG: idx_from: {idx_from} | {instance.nn_input_idx_to_tour[idx_from]}")
-                print(f"DEBUG: idx_to: {idx_to} | {instance.nn_input_idx_to_tour[idx_to]}")
-            nn_input_update, cur_nn_input_idx = instance.do_action(idx_from, idx_to, print_debug)  # Connect origin to select point
+            nn_input_update, cur_nn_input_idx = instance.do_action(idx_from, idx_to, False)  # Connect origin to select point
             for s in nn_input_update:
                 s.insert(0, i)
                 nn_input_updates.append(s)
@@ -146,9 +94,6 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
                 origin_idx[i] = 0  # If instance is repaired set origin to 0
             else:
                 origin_idx[i] = cur_nn_input_idx  # Otherwise, set to tour end of the connect tour
-            print(f"\nDEBUG: after do_action:")
-            for j, el in enumerate(instance.nn_input_idx_to_tour):
-                print(j, el)
 
         # Update network input
         nn_input_update = np.array(nn_input_updates, dtype=np.long)
