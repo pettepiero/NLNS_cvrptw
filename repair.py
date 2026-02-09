@@ -63,8 +63,8 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
                 print('->', j, el)
         del origin_cust
 
-        mask = vrp_problem.get_mask(origin_idx, static_input, dynamic_input_last_dim, instances, config, vehicle_capacity).to(
-            config.device).float()
+        mask, invert_connection = vrp_problem.get_mask(origin_idx, static_input, dynamic_input_last_dim, instances, config, vehicle_capacity)
+        mask = mask.to(config.device).float()
         # mask: (batch, N) float/bool-like
         #row_ok = (mask.sum(dim=1) > 0)
         #if not row_ok.all():
@@ -106,6 +106,8 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
         for i, instance in enumerate(instances):
             idx_from = origin_idx[i].item()
             idx_to = ptr_np[i]
+            if invert_connection[i]:
+                idx_from, idx_to = idx_to, idx_from
             #log.info(f"\t For instance {i}/{len(instances)} sampled: idx_from={idx_from}, idx_to={idx_to}")
             #log.info(f"\t It means tour_from: {instance.nn_input_idx_to_tour[idx_from][0]} | tour_to: {instance.nn_input_idx_to_tour[idx_to][0]}")
             #log.info(f"\t Used mask for above sample: {mask}")
@@ -116,6 +118,7 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
                 print_debug = True 
             else:
                 print_debug = False
+            print_debug = True
             if print_debug:
                 print(f"\nDEBUG: instance: {i}")
                 print(f"DEBUG: instance.solution:")
@@ -143,6 +146,9 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
                 origin_idx[i] = 0  # If instance is repaired set origin to 0
             else:
                 origin_idx[i] = cur_nn_input_idx  # Otherwise, set to tour end of the connect tour
+            print(f"\nDEBUG: after do_action:")
+            for j, el in enumerate(instance.nn_input_idx_to_tour):
+                print(j, el)
 
         # Update network input
         nn_input_update = np.array(nn_input_updates, dtype=np.long)

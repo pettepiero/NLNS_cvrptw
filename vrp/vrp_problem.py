@@ -312,8 +312,8 @@ class VRPInstance():
             current_cust = None
             arrival = None
             start = None
-            print(f"\n\nIn compute_tour_schedule:")
-            print(f"tour: {tour}")
+            print(f"\n\n\tIn compute_tour_schedule:")
+            print(f"\ttour: {tour}")
             for i in range(len(tour) -1):
                 service_time = self.service_time
                 end = None
@@ -322,51 +322,53 @@ class VRPInstance():
                 travel_time = int(self.speed_f * self.distances[current_cust][next_cust])
                 tw_open, tw_close = self.time_window[current_cust]
                 nc_tw_open, nc_tw_close = self.time_window[next_cust]
-                print(f"DEBUG: i = {i} | current_cust = {current_cust} | next_cust = {next_cust}")
-                print(f"DEBUG: travel_time = {travel_time}")  
-                print(f"DEBUG: self.time_window[{current_cust}] = {self.time_window[current_cust]}")
-                print(f"DEBUG: self.time_window[{next_cust}] = {self.time_window[next_cust]}")
+                print(f"\tDEBUG: i = {i} | current_cust = {current_cust} | next_cust = {next_cust}")
+                print(f"\tDEBUG: travel_time = {travel_time}")  
+                print(f"\tDEBUG: self.time_window[{current_cust}] = {self.time_window[current_cust]}")
+                print(f"\tDEBUG: self.time_window[{next_cust}] = {self.time_window[next_cust]}")
                 if i == 0:
                     if current_cust == 0:
                         start = 0 #for depot start from 0
                         service_time = 0
                     elif current_cust != 0:
-                        print(f"DEBUG: tw_open: {tw_open} vs dist from depot: {self.speed_f * self.distances[0][current_cust]}")
+                        print(f"\tDEBUG: tw_open: {tw_open} vs dist from depot: {self.speed_f * self.distances[0][current_cust]}")
                         start = max(tw_open, self.speed_f * self.distances[0][current_cust])
                     #start = 0
                     #arrival = travel_time
                 else:
                     start = int(max(arrival, tw_open))
-                print(f"DEBUG: start: {start} | service_time: {service_time}")
+                print(f"\tDEBUG: start: {start} | service_time: {service_time}")
 
                 if start > tw_close:
-                    print(f"    DEBUG: failed on tour: {tour} at index {i}")
-                    print(f"    DEBUG: solution:")
+                    print(f"\t    DEBUG: failed on tour: {tour} at index {i}")
+                    print(f"\t    DEBUG: solution:")
                     for el in self.solution:
-                        print(f"     {el}")
-                    print(f"    current_cust: {current_cust}")
-                    print(f"    next_cust: {next_cust}")
-                    print(f"    start: {start}")
-                    print(f"    end: {end}")
-                    print(f"    arrival: {arrival}")
-                    print(f"    tw_open: {tw_open}")
-                    print(f"    tw_close: {tw_close}")
-                    print(f"    nc_tw_open: {nc_tw_open}")
-                    print(f"    nc_tw_close: {nc_tw_close}")
-                    print(f"    travel_time: {travel_time}")
-                    print(f"    service_time: {service_time}")
-                    print(f"    schedule: {schedule}")
-                    print(f"    DEBUG: time_window:")
+                        print(f"\t     {el}")
+                    print(f"\t    current_cust: {current_cust}")
+                    print(f"\t    next_cust: {next_cust}")
+                    print(f"\t    start: {start}")
+                    print(f"\t    end: {end}")
+                    print(f"\t    arrival: {arrival}")
+                    print(f"\t    tw_open: {tw_open}")
+                    print(f"\t    tw_close: {tw_close}")
+                    print(f"\t    nc_tw_open: {nc_tw_open}")
+                    print(f"\t    nc_tw_close: {nc_tw_close}")
+                    print(f"\t    travel_time: {travel_time}")
+                    print(f"\t    service_time: {service_time}")
+                    print(f"\t    schedule: {schedule}")
+                    print(f"\t    DEBUG: time_window:")
                     for j, el in enumerate(self.time_window):
-                        print(f"    {j}, {el}")
+                        print(f"\t    {j}, {el}")
                     raise ValueError 
 
                 end = start + service_time
-                print(f"DEBUG: end = {end}")
+                print(f"\tDEBUG: end = {end}")
                 schedule.append([int(start), int(end)])
-                print(f"DEBUG: updated schedule: {schedule}")
+                print(f"\tDEBUG: updated schedule: {schedule}")
                 arrival = end + travel_time
-                print(f"DEBUG: arrival = {arrival} \n")
+                if arrival > nc_tw_close:
+                    raise ValueError
+                print(f"\tDEBUG: arrival = {arrival} \n")
                 
             last_cust = tour[-1][0]
             tw_open, tw_close = self.time_window[last_cust]
@@ -689,6 +691,7 @@ class VRPInstance():
         pos_to = self.nn_input_idx_to_tour[id_to][1]  # Position of the location that should be connected in tour_to
         nn_input_update = []  # Instead of recalculating the tensor representation, we only compute an update description.
         # Case 1
+        print_debug = True
         if print_debug:
             print(f"DEBUG: Called do_action with: tour_from: {tour_from} | tour_to: {tour_to}")
 
@@ -991,13 +994,19 @@ def get_forward_mask(origin_idx, scaled_time, scaled_travel_times, inst, tw):
     assert isinstance(scaled_time, float)
     assert len(scaled_travel_times) == len(tw)
     print(f"\tDEBUG: in get_forward_mask()")
-    print(f"\tDEBUG: scaled_travel_times: {scaled_travel_times}")
+    print(f"\tDEBUG: scaled_travel_times: ")
+    for j, el in enumerate(scaled_travel_times):
+        print('\t', j, el)
     scaled_time = torch.tensor(scaled_time, device=scaled_travel_times.device).unsqueeze(-1)
     print(f"\tDEBUG: scaled_time: {scaled_time} | inst.service_time/inst.max_time: {inst.service_time/inst.max_time}")
     arrival_times = scaled_time + scaled_travel_times + (inst.service_time)/inst.max_time
-    print(f"\tDEBUG: arrival_times: {arrival_times}")
+    print(f"\tDEBUG: arrival_times vs tw:")
+    for j, el in enumerate(zip(arrival_times, tw)):
+        print('\t', j, el)
     mask = arrival_times <= tw
-    print(f"\tDEBUG: mask: {mask}")
+    print(f"\tDEBUG: mask: ")
+    for j, el in enumerate(mask):
+        print('\t', j, el)
     mask[origin_idx] = False
 
     return mask
@@ -1005,26 +1014,36 @@ def get_forward_mask(origin_idx, scaled_time, scaled_travel_times, inst, tw):
 def get_backward_mask(origin_idx, scaled_time, scaled_travel_times, inst, tw):
     assert isinstance(scaled_time, float)
     assert len(scaled_travel_times) == len(tw)
-    print(f"\tDEBUG: in get_backward_mask()")
-    print(f"\tDEBUG: scaled_travel_times: {scaled_travel_times}")
+    print(f"\tDEBUG: in get_backward_mask() | origin_idx: {origin_idx}")
+    print(f"\tDEBUG: scaled_travel_times: ")
+    for j, el in enumerate(scaled_travel_times):
+        print('\t', j, el)
     scaled_time = torch.tensor(scaled_time, device=scaled_travel_times.device).unsqueeze(-1)
     print(f"\tDEBUG: scaled_time: {scaled_time} | inst.service_time/inst.max_time: {inst.service_time/inst.max_time}")
-    arrival_times = scaled_time - scaled_travel_times - (inst.service_time)/inst.max_time
-    print(f"\tDEBUG: arrival_times: {arrival_times}")
+    #arrival_times = scaled_time - scaled_travel_times - (inst.service_time)/inst.max_time
+    arrival_times = scaled_time - scaled_travel_times # don't need to remove service time
+    print(f"\tDEBUG: arrival_times vs tw:")
+    for j, el in enumerate(zip(arrival_times, tw)):
+        print('\t', j, el)
     print(f"\tDEBUG: tw: {tw}")
     mask = tw <= arrival_times 
-    print(f"\tDEBUG: mask: {mask}")
+    print(f"\tDEBUG: mask: ")
+    for j, el in enumerate(mask):
+        print('\t', j, el)
     mask[origin_idx] = False
     
     return mask
 
 def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config, capacity):
     """ Returns a mask for the current nn_input"""
+    print(f"DEBUG in get_mask")
     assert len(dynamic_input.shape) == 3
     assert dynamic_input.shape[-1] == 4
     device = dynamic_input.device
     dtype = dynamic_input.dtype
     batch_size = origin_nn_input_idx.shape[0]
+
+    invert_connection = torch.zeros(len(instances), dtype=torch.bool, device=static_input.device) #if True at position i -> it means that instance i has a mask for a backward connection -> in repair.py the order of tour_from and tour_to will need to be inverted!
 
     dist_channel = dynamic_input[:, :, -2]
     time_channel = dynamic_input[:, :, -1]
@@ -1039,20 +1058,69 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
         idx_from = origin_nn_input_idx[i].item()
         origin_tour, origin_pos = instances[i].nn_input_idx_to_tour[idx_from]
         if len(origin_tour) == 1:
+            print(f"\nDEBUG: i == {i}")
             print(f"DEBUG: in get_mask, considering origin_tour: {origin_tour}")
-            print(f"DEBUG: instances[i].nn_input_idx_to_tour:")
-            for el in instances[i].nn_input_idx_to_tour:
-                print(el)
-            tw_open, tw_close = instances[i].time_window[origin_tour[0][0]]
-            print(f"DEBUG: tw_open = {tw_open} | tw_close = {tw_close}")
+            print(f"DEBUG: instances[{i}].solution | schedule")
+            for el in zip(instances[i].solution, instances[i].schedule):
+                print(el[0], ' | ', el[1])
+            print(f"DEBUG: instances[{i}].nn_input_idx_to_tour:")
+            for j, el in enumerate(instances[i].nn_input_idx_to_tour):
+                if j in instances[i].open_nn_input_idx:
+                    print(' ', el)
+                else:
+                    print('X', el)
+            scaled_tw_open, scaled_tw_close = instances[i].time_window[origin_tour[0][0]]/instances[i].max_time
+            print(f"DEBUG: scaled_tw_open = {scaled_tw_open} | scaled_tw_close = {scaled_tw_close}")
+            print(f"DEBUG: idx_from: {idx_from}")
+            print(f"DEBUG: time_channel[i]:")
+            print(time_channel[i])
+            print(f"DEBUG: time_channel[i][idx_from]: {time_channel[i][idx_from]}", ' -> this represents the current time at origin')
+            print(f"DEBUG: travel_time_norm[i]:")
+            for j, el in enumerate(travel_time_norm[i]):
+                print(j, el)
+            print(f"DEBUG: tw_norm[i]:")
+            for j, el in enumerate(tw_norm[i]):
+                print(j, el)
+
+            if time_channel[i][idx_from] == scaled_tw_open:
+                #then I can test for insertion after origin_idx
+                print(f"DEBUG: then testing for forward insertion")
+                bw_mask = torch.zeros_like(travel_time_norm[i], device=travel_time_norm.device, dtype=torch.bool)
+                #fw_mask = get_forward_mask(idx_from, float(time_channel[i][idx_from]), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
+                fw_mask = get_forward_mask(idx_from, float(time_channel[i][idx_from]), travel_time_norm[i], instances[i], time_channel[i]) 
+            elif time_channel[i][idx_from] == scaled_tw_close:
+                invert_connection[i] = True 
+                print(f"DEBUG: then testing for backward insertion")
+                print(f"DEBUG: time windows for customers in nn_input_idx_to_tour")
+                for j, k in enumerate(instances[i].nn_input_idx_to_tour):
+                    if k is not None:
+                        tour, pos = k
+                        cust = tour[pos][0]
+                        print(f"scaled tw for cust {cust}: {instances[i].time_window[cust]/instances[i].max_time}")
+                fw_mask = torch.zeros_like(travel_time_norm[i], device=travel_time_norm.device, dtype=torch.bool)
+                #bw_mask = get_backward_mask(idx_from, float(time_channel[i][idx_from]), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
+                bw_mask = get_backward_mask(idx_from, float(time_channel[i][idx_from]), travel_time_norm[i], instances[i], time_channel[i]) 
+            else:
+                print(f"DEBUG: got time_channel[i][idx_from]: {time_channel[i][idx_from]} and scaled_tw_open = {scaled_tw_open} | scaled_tw_close = {scaled_tw_close}")
+                raise ValueError
+
             #bw_mask = get_backward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
-            bw_mask = get_backward_mask(idx_from, float(tw_close/max_time[i].item()), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
+            #bw_mask = get_backward_mask(idx_from, float(scaled_tw_close), travel_time_norm[i], instances[i], tw_norm[i, :, 0]) 
             print(f"DEBUG: bw_mask = {bw_mask} ")
             #fw_mask = get_forward_mask(idx_from, time_channel[i][idx_from].item(), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
-            fw_mask = get_forward_mask(idx_from, float(tw_open/max_time[i].item()), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
+            #fw_mask = get_forward_mask(idx_from, float(scaled_tw_open), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
             print(f"DEBUG: fw_mask = {fw_mask} ")
             time_feasible[i] = bw_mask | fw_mask
-            print(f"DEBUG: time_feasible = {time_feasible} ")
+            print(f"DEBUG: time_feasible = {time_feasible}")
+            print(f"DEBUG: this means the feasible connections are:")
+            tours = instances[i].nn_input_idx_to_tour
+            valid_tours = [tours[idx] for idx, is_valid in enumerate(time_feasible[i]) if is_valid]
+
+            for j, el in enumerate(zip(tours, time_feasible[i])):
+                print(j, el)
+
+            del valid_tours, tours
+
 
             #in_time_to_return = get_return_mask(idx_from, float(tw_open), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
 
@@ -1156,7 +1224,7 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
     mask = mask & same_dir
     mask[:, 0] = True  # Always allow to go to the depot
 
-    return mask
+    return mask, invert_connection
 
 def reorder_tours(tour_from, tour_to, pos_from, pos_to):
     # Exchange tour_from with tour_to or invert order of the tours. This reduces the number of cases that need
