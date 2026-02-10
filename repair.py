@@ -75,6 +75,7 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
         nn_input_updates = []
         ptr_np = ptr.cpu().numpy()
         for i, instance in enumerate(instances):
+            print(f"DEBUG: doing instance {i}/{len(instances) -1}")
             idx_from = origin_idx[i].item()
             idx_to = ptr_np[i]
             if invert_connection[i]:

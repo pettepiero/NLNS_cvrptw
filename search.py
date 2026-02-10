@@ -26,7 +26,6 @@ def destroy_instances(rng, instances, destroy_procedure=None, destruction_p=None
         elif destroy_procedure == "P":
             instance.destroy_point_based(destruction_p, rng=rng)
         elif destroy_procedure == "T":
-            print_debug=False
             instance.destroy_tour_based(destruction_p, rng=rng)
 
 

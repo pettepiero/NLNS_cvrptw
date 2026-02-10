@@ -305,8 +305,16 @@ class VRPInstance():
 
     def compute_tour_schedule(self, tour):
         if len(tour) == 1:
+            print(f"\nDEBUG: in compute_tour_schedule: tour: {tour}")
             cust = tour[0][0]
-            schedule = [[int(self.time_window[cust][0]), int(self.time_window[cust][1])]]
+            dist_from_depot = np.sqrt((self.locations[0][0] - self.locations[cust][0])**2 + (self.locations[0][1] - self.locations[cust][1])**2) 
+            time_from_depot = self.speed_f*dist_from_depot
+            print(f"cust: {cust} | dist_from_depot: {dist_from_depot} | time_from_depot: {time_from_depot} ")
+            print(f"self.time_window[cust]: {self.time_window[cust]}")
+            assert time_from_depot < int(self.time_window[cust][1])
+            #schedule = [[int(self.time_window[cust][0]), int(self.time_window[cust][1])]]
+            schedule = [[max(int(time_from_depot), int(self.time_window[cust][0])), int(self.time_window[cust][1])]]
+            print(f"Set schedule to: {schedule}")
             assert len(tour) == len(schedule)
             return schedule
         elif len(tour) > 1:
@@ -334,6 +342,13 @@ class VRPInstance():
                     start = int(max(arrival, tw_open))
 
                 if start > tw_close:
+                    raise ValueError 
+
+                end = start + service_time
+                schedule.append([int(start), int(end)])
+                arrival = end + travel_time
+                if arrival > nc_tw_close:
+                    print(f"\n\nERROR in compute_tour_schedule: arrival = {arrival} | nc_tw_close = {nc_tw_close }")
                     print(f"\t    DEBUG: failed on tour: {tour} at index {i}")
                     print(f"\t    DEBUG: solution:")
                     for el in self.solution:
@@ -353,12 +368,6 @@ class VRPInstance():
                     print(f"\t    DEBUG: time_window:")
                     for j, el in enumerate(self.time_window):
                         print(f"\t    {j}, {el}")
-                    raise ValueError 
-
-                end = start + service_time
-                schedule.append([int(start), int(end)])
-                arrival = end + travel_time
-                if arrival > nc_tw_close:
                     raise ValueError
                 
             last_cust = tour[-1][0]
@@ -474,7 +483,10 @@ class VRPInstance():
                 #time = int(max(0, self.time_window[e[0]][0] - self.speed_f*self.distances[0][e[0]]))
                 #print(f"\t\t\ttime: {time}")
                 #new_schedules.append([[time, time + self.service_time]]) 
-                new_schedules.append([[self.time_window[e[0]][0].item(), self.time_window[e[0]][1].item()]]) 
+                cust = e[0]
+                dist_from_depot = np.sqrt((self.locations[0][0] - self.locations[cust][0])**2 + (self.locations[0][1] - self.locations[cust][1])**2) 
+                time_from_depot = self.speed_f*dist_from_depot
+                new_schedules.append([[max(int(time_from_depot), int(self.time_window[e[0]][0].item())), self.time_window[e[0]][1].item()]]) 
                 removed_customer_idx.append(e[0])
 
         # Remove the tours that are marked for removal from the solution
@@ -497,7 +509,22 @@ class VRPInstance():
         self._check_sol_sched_alignment()
         
     def _check_sol_sched_alignment(self):
-        assert len(self.solution) == len(self.schedule)
+        if len(self.solution) != len(self.schedule):
+            print(f"\n\n\t\tERROR in _check_sol_sched_alignment:")
+            print(f"\t\tself.solution:")
+            for j, el in enumerate(self.solution):
+                print('\t\t', j, el)
+            print(f"\t\tself.schedule:")
+            for j, el in enumerate(self.schedule):
+                print('\t\t', j, el)
+            raise AssertionError
+        else:
+            for sol, sched in zip(self.solution, self.schedule):
+                if len(sol) != len(sched):
+                    print(f"\n\n\t\tERROR in _check_sol_sched_alignment:")
+                    print(f"\t\tsol: {sol}")
+                    print(f"\t\tsched: {sched}")
+                    raise AssertionError
 
     def _get_incomplete_tours(self):
         incomplete_tours = []
@@ -660,168 +687,186 @@ class VRPInstance():
     def do_action(self, id_from, id_to, print_debug = False):
         """Performs an action. The tour end represented by input with the id id_from is connected to the tour end
          presented by the input with id id_to."""
+        previous_solution = self.get_solution_copy()
+        previous_schedule = deepcopy(self.schedule)
+        previous_nn_input_idx_to_tour = deepcopy(self.nn_input_idx_to_tour)
+        previous_open_nn_input_idx = deepcopy(self.open_nn_input_idx)
+
         tour_from = self.nn_input_idx_to_tour[id_from][0]  # Tour that should be connected
         tour_to = self.nn_input_idx_to_tour[id_to][0]  # to this tour.
         pos_from = self.nn_input_idx_to_tour[id_from][1]  # Position of the location that should be connected in tour_from
         pos_to = self.nn_input_idx_to_tour[id_to][1]  # Position of the location that should be connected in tour_to
         nn_input_update = []  # Instead of recalculating the tensor representation, we only compute an update description.
-        # Case 1
-        if print_debug:
-            print(f"DEBUG: Called do_action with: tour_from: {tour_from} | tour_to: {tour_to}")
+        try:
+            # Case 1
+            print_debug = True
+            if print_debug:
+                print(f"DEBUG: Called do_action with: tour_from: {tour_from} | tour_to: {tour_to}")
 
-        tour_from, tour_to, pos_from, pos_to = reorder_tours(tour_from, tour_to, pos_from, pos_to)
-        # Case 1
-        if print_debug:
-            print(f"DEBUG: After reorder_tours: tour_from: {tour_from} | tour_to: {tour_to}")
+            tour_from, tour_to, pos_from, pos_to = reorder_tours(tour_from, tour_to, pos_from, pos_to)
+            # Case 1
+            if print_debug:
+                print(f"DEBUG: After reorder_tours: tour_from: {tour_from} | tour_to: {tour_to}")
 
-        # Now we only need to consider two cases 1) Connecting an incomplete tour with more than one location
-        # to an incomplete tour with more than one location 2) Connecting an incomplete tour (single
-        # or multiple locations) to incomplete tour consisting of a single location
+            # Now we only need to consider two cases 1) Connecting an incomplete tour with more than one location
+            # to an incomplete tour with more than one location 2) Connecting an incomplete tour (single
+            # or multiple locations) to incomplete tour consisting of a single location
 
-        if len(tour_from) > 1 and len(tour_to) > 1:
-            combined_demand = sum(l[1] for l in tour_from) + sum(l[1] for l in tour_to)
-            assert combined_demand <= self.capacity  # This is ensured by the masking schema
+            if len(tour_from) > 1 and len(tour_to) > 1:
+                combined_demand = sum(l[1] for l in tour_from) + sum(l[1] for l in tour_to)
+                assert combined_demand <= self.capacity  # This is ensured by the masking schema
 
-            # The two incomplete tours are combined to one (in)complete tour. All network inputs associated with the
-            # two connected tour ends are set to 0
-            nn_input_update.append([tour_from[-1][2], 0, 0])
-            nn_input_update.append([tour_to[0][2], 0, 0])
-            tour_from.extend(tour_to)
-            self.solution.remove(tour_to)
-            nn_input_update.extend(self._get_network_input_update_for_tour(tour_from, combined_demand))
+                # The two incomplete tours are combined to one (in)complete tour. All network inputs associated with the
+                # two connected tour ends are set to 0
+                nn_input_update.append([tour_from[-1][2], 0, 0])
+                nn_input_update.append([tour_to[0][2], 0, 0])
+                tour_from.extend(tour_to)
+                self.solution.remove(tour_to)
+                nn_input_update.extend(self._get_network_input_update_for_tour(tour_from, combined_demand))
 
-        # Case 2
-        if len(tour_to) == 1:
-            demand_from = sum(l[1] for l in tour_from)
-            combined_demand = demand_from + sum(l[1] for l in tour_to)
-            unfulfilled_demand = combined_demand - self.capacity
+            # Case 2
+            if len(tour_to) == 1:
+                demand_from = sum(l[1] for l in tour_from)
+                combined_demand = demand_from + sum(l[1] for l in tour_to)
+                unfulfilled_demand = combined_demand - self.capacity
 
-            # The new tour has a total demand that is smaller than or equal to the vehicle capacity
-            if unfulfilled_demand <= 0:
-                # deactivate unused twin of tour_to
-                if tour_to != [[0, 0, 0]]:
-                    indices = self.get_indices_of_cust(tour_to[0][0])
-                    idx_to_deactivate = None
-                    for idx in indices:
-                        if self.nn_input_idx_to_tour[idx][0] != tour_to:
-                            idx_to_deactivate = idx
-                    assert idx_to_deactivate is not None
-                    nn_input_update.append([idx_to_deactivate, 0, 0])
-
-                if len(tour_from) > 1:
-                    nn_input_update.append([tour_from[-1][2], 0, 0])
-                else:
-                    if tour_from != [[0, 0, 0]]:
-                        #deactivate unused twin of tour_from
-                        indices = self.get_indices_of_cust(tour_from[0][0])
+                # The new tour has a total demand that is smaller than or equal to the vehicle capacity
+                if unfulfilled_demand <= 0:
+                    # deactivate unused twin of tour_to
+                    if tour_to != [[0, 0, 0]]:
+                        indices = self.get_indices_of_cust(tour_to[0][0])
                         idx_to_deactivate = None
                         for idx in indices:
-                            if self.nn_input_idx_to_tour[idx][0] != tour_from:
+                            if self.nn_input_idx_to_tour[idx][0] != tour_to:
                                 idx_to_deactivate = idx
                         assert idx_to_deactivate is not None
                         nn_input_update.append([idx_to_deactivate, 0, 0])
-                # Update solution
-                if tour_from in self.solution:
-                    index = self.solution.index(tour_from)
-                    self.solution[index] = tour_from
-                    tour_from.extend(tour_to)
-                else: #substitute twin in solution with tour_from
-                    twin_idx = self.get_idx_in_solution(tour_from, pos_from)
-                    self.solution[twin_idx] = tour_from
-                    tour_from.extend(tour_to)
-                if tour_to in self.solution:
-                    self.solution.remove(tour_to)
-                else: #remove twin tour
-                    tour_to = self.solution[self.get_idx_in_solution(tour_to, pos_to)]
-                    self.solution.remove(tour_to)
-                # Generate input update
-                nn_input_update.extend(self._get_network_input_update_for_tour(tour_from, combined_demand))
-                     
 
-            # The new tour has a total demand that is larger than the vehicle capacity
-            else:
-                raise NotImplementedError
-                nn_input_update.append([tour_from[-1][2], 0, 0])
-                if len(tour_from) > 1 and tour_from[0][0] != 0:
-                    nn_input_update.append([tour_from[0][2], 0, 0])
-
-                # Update solution
-                tour_from.append([tour_to[0][0], tour_to[0][1], tour_to[0][2]])  # deepcopy of tour_to
-                tour_from[-1][1] = self.capacity - demand_from
-                tour_from.append([0, 0, 0])
-                if tour_from[0][0] != 0:
-                    tour_from.insert(0, [0, 0, 0])
-                tour_to[0][1] = unfulfilled_demand  # Update demand of tour_to
-
-                nn_input_update.extend(self._get_network_input_update_for_tour(tour_to, unfulfilled_demand))
-        # Case 3
-        if len(tour_from) == 1  and len(tour_to) > 1:
-            demand_from = tour_from[0][1]
-            combined_demand = demand_from + sum(l[1] for l in tour_to)
-            unfulfilled_demand = combined_demand - self.capacity
-            # The new tour has a total demand that is smaller than or equal to the vehicle capacity
-            if unfulfilled_demand <= 0:
-                #if len(tour_from) > 1:
-                # Update solution
-                if tour_from == [[0, 0, 0]]:
-                    nn_input_update.append([tour_to[0][2], 0, 0])
-                    tour_to.insert(0, tour_from[0])
-                    # Generate input update
-                    nn_input_update.extend(self._get_network_input_update_for_tour(tour_to, combined_demand))
-                else:
-                    # deactivate tour_to end that is connected to tour_from
-                    nn_input_update.append([tour_to[0][2], 0, 0])
-                    # deactivate twin of tour_from if it exists
-                    tour_from_indices = self.get_indices_of_cust(tour_from[0][0])
-                    twin_idx = None
-                    for t_idx in tour_from_indices:
-                        t = self.nn_input_idx_to_tour[t_idx][0] 
-                        if t != tour_from:
-                            nn_input_update.append([t[0][2], 0, 0])
-                            twin_idx = t_idx
+                    if len(tour_from) > 1:
+                        nn_input_update.append([tour_from[-1][2], 0, 0])
+                    else:
+                        if tour_from != [[0, 0, 0]]:
+                            #deactivate unused twin of tour_from
+                            indices = self.get_indices_of_cust(tour_from[0][0])
+                            idx_to_deactivate = None
+                            for idx in indices:
+                                if self.nn_input_idx_to_tour[idx][0] != tour_from:
+                                    idx_to_deactivate = idx
+                            assert idx_to_deactivate is not None
+                            nn_input_update.append([idx_to_deactivate, 0, 0])
+                    # Update solution
                     if tour_from in self.solution:
                         index = self.solution.index(tour_from)
                         self.solution[index] = tour_from
                         tour_from.extend(tour_to)
-                    else:
-                        # then twin is present. Substitute twin with new extended tour
-                        #first find index in solution that has to be substituted
-                        idx_to_substitute = None
-                        for k, el in enumerate(self.solution):
-                            if el[0][0] == tour_from[0][0]:
-                                idx_to_substitute = k
-                                break
-                        assert idx_to_substitute is not None
+                    else: #substitute twin in solution with tour_from
+                        twin_idx = self.get_idx_in_solution(tour_from, pos_from)
+                        self.solution[twin_idx] = tour_from
                         tour_from.extend(tour_to)
-                        self.solution[idx_to_substitute] = tour_from
-                    self.solution.remove(tour_to)
+                    if tour_to in self.solution:
+                        self.solution.remove(tour_to)
+                    else: #remove twin tour
+                        tour_to = self.solution[self.get_idx_in_solution(tour_to, pos_to)]
+                        self.solution.remove(tour_to)
                     # Generate input update
                     nn_input_update.extend(self._get_network_input_update_for_tour(tour_from, combined_demand))
-            
+                         
 
-        # Add depot tour to the solution tours if it was removed
-        if self.solution[0] != [[0, 0, 0]]:
-            self.solution.insert(0, [[0, 0, 0]])
-            self.nn_input_idx_to_tour[0] = [self.solution[0], 0]
+                # The new tour has a total demand that is larger than the vehicle capacity
+                else:
+                    raise NotImplementedError
+                    nn_input_update.append([tour_from[-1][2], 0, 0])
+                    if len(tour_from) > 1 and tour_from[0][0] != 0:
+                        nn_input_update.append([tour_from[0][2], 0, 0])
 
-        for update in nn_input_update:
-            if update[2] == 0 and update[0] != 0:
-                self.open_nn_input_idx.remove(update[0])
+                    # Update solution
+                    tour_from.append([tour_to[0][0], tour_to[0][1], tour_to[0][2]])  # deepcopy of tour_to
+                    tour_from[-1][1] = self.capacity - demand_from
+                    tour_from.append([0, 0, 0])
+                    if tour_from[0][0] != 0:
+                        tour_from.insert(0, [0, 0, 0])
+                    tour_to[0][1] = unfulfilled_demand  # Update demand of tour_to
 
-        #update schedules
-        sc = []
-        for tour in self.solution:
-            if len(tour) == 1 and tour[0][0] == 0:
-                sc.append([[0, 0]])
-            else:
-                sc.append(self.compute_tour_schedule(tour))
-            #if len(tour) > 1:
-            #    sc.append(self.compute_tour_schedule(tour))
-            #else:
-            #    sc.append([[0, 0]])
-        self.schedule = sc
-        self._check_sol_sched_alignment()
-        return nn_input_update, tour_from[-1][2]
+                    nn_input_update.extend(self._get_network_input_update_for_tour(tour_to, unfulfilled_demand))
+            # Case 3
+            if len(tour_from) == 1  and len(tour_to) > 1:
+                demand_from = tour_from[0][1]
+                combined_demand = demand_from + sum(l[1] for l in tour_to)
+                unfulfilled_demand = combined_demand - self.capacity
+                # The new tour has a total demand that is smaller than or equal to the vehicle capacity
+                if unfulfilled_demand <= 0:
+                    #if len(tour_from) > 1:
+                    # Update solution
+                    if tour_from == [[0, 0, 0]]:
+                        nn_input_update.append([tour_to[0][2], 0, 0])
+                        tour_to.insert(0, tour_from[0])
+                        # Generate input update
+                        nn_input_update.extend(self._get_network_input_update_for_tour(tour_to, combined_demand))
+                    else:
+                        # deactivate tour_to end that is connected to tour_from
+                        nn_input_update.append([tour_to[0][2], 0, 0])
+                        # deactivate twin of tour_from if it exists
+                        tour_from_indices = self.get_indices_of_cust(tour_from[0][0])
+                        twin_idx = None
+                        for t_idx in tour_from_indices:
+                            t = self.nn_input_idx_to_tour[t_idx][0] 
+                            if t != tour_from:
+                                nn_input_update.append([t[0][2], 0, 0])
+                                twin_idx = t_idx
+                        if tour_from in self.solution:
+                            index = self.solution.index(tour_from)
+                            self.solution[index] = tour_from
+                            tour_from.extend(tour_to)
+                        else:
+                            # then twin is present. Substitute twin with new extended tour
+                            #first find index in solution that has to be substituted
+                            idx_to_substitute = None
+                            for k, el in enumerate(self.solution):
+                                if el[0][0] == tour_from[0][0]:
+                                    idx_to_substitute = k
+                                    break
+                            assert idx_to_substitute is not None
+                            tour_from.extend(tour_to)
+                            self.solution[idx_to_substitute] = tour_from
+                        self.solution.remove(tour_to)
+                        # Generate input update
+                        nn_input_update.extend(self._get_network_input_update_for_tour(tour_from, combined_demand))
+                
+
+            # Add depot tour to the solution tours if it was removed
+            if self.solution[0] != [[0, 0, 0]]:
+                self.solution.insert(0, [[0, 0, 0]])
+                self.nn_input_idx_to_tour[0] = [self.solution[0], 0]
+
+            for update in nn_input_update:
+                if update[2] == 0 and update[0] != 0:
+                    self.open_nn_input_idx.remove(update[0])
+
+            #update schedules
+            sc = []
+            for tour in self.solution:
+                if len(tour) == 1 and tour[0][0] == 0:
+                    sc.append([[0, 0]])
+                else:
+                    sc.append(self.compute_tour_schedule(tour))
+                #if len(tour) > 1:
+                #    sc.append(self.compute_tour_schedule(tour))
+                #else:
+                #    sc.append([[0, 0]])
+            self.schedule = sc
+            self._check_sol_sched_alignment()
+            return nn_input_update, tour_from[-1][2]
+
+        except ValueError:
+            # revert state if error in compute_tour_schedule
+            if print_debug:
+                print(f"DEBUG: Action failed")
+            self.solution = previous_solution
+            self.schedule = previous_schedule
+            self.nn_input_idx_to_tour = previous_nn_input_idx_to_tour
+            self.open_nn_input_idx = previous_open_nn_input_idx
+            raise
+
 
     def verify_solution(self, config):
         """Verify that a feasible solution has been found."""
@@ -901,7 +946,7 @@ class VRPInstance():
             print_debug=True
             if print_debug:
                 if j == origin_idx:
-                    print(f"\t -> Doing index {j} | {t} | {pos}")
+                    print(f"\n\t -> Doing index {j} | {t} | {pos}")
                     print(f"\t    index in solution: {idx}")
                     print(f"\t    schedule: {self.schedule[idx]}")
                     print(f"\t    prev_t: {prev_t}")
@@ -913,14 +958,14 @@ class VRPInstance():
 
 
             if (len(prev_t) == len(t)) and (prev_t[0][0] == t[0][0]) and (t[0][0] != 0):
-                print(f"DEBUG: index {j} is first case")
+                print(f"\tDEBUG: index {j} is first case")
                 if current_pos == 0:
                     current_times[j] = self.schedule[idx][pos][0]
                 else:
                     current_times[j] = self.schedule[idx][pos][1]
                 print(f"\tDEBUG: set current_times[{j}] = {current_times[j]}")
             else:
-                print(f"DEBUG: index {j} is second case")
+                print(f"\tDEBUG: index {j} is second case")
                 if current_pos == 0:
                     print(f"\tDEBUG: self.solution:")
                     for k, el in enumerate(self.solution):
@@ -1018,6 +1063,7 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
 
     dist_channel = dynamic_input[:, :, -2]
     time_channel = dynamic_input[:, :, -1]
+    print(f"\nDEBUG: in get_mask")
     print(f"DEBUG: dynamic_input:")
     for j, el in enumerate(dynamic_input[:, :, -2:]):
         print(j, el)
@@ -1045,17 +1091,31 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
                 print('  ', j, el)
             else:
                 print('->', j, el)
+        print(f"DEBUG: time_windows:")
+        for j, el in enumerate(instances[i].time_window):
+            print(j, el)
+        print(f"DEBUG: times_from_depots:")
+        for j, el in enumerate(instances[i].locations):
+            dist = np.sqrt((instances[i].distances[0][0] - instances[i].distances[j][0])**2 - (instances[i].distances[0][1] - instances[i].distances[j][1])**2)
+            print(j, dist*instances[i].speed_f)
+
 
         
         if len(origin_tour) == 1:
             scaled_tw_open, scaled_tw_close = instances[i].time_window[origin_tour[0][0]]/instances[i].max_time
+            eps = 0.01
+            t, p = instances[i].nn_input_idx_to_tour[idx_from]
+            cust = t[p][0]
+            time_to_depot = instances[i].speed_f*instances[i].distances[0][cust]/instances[i].max_time 
 
-            if time_channel[i][idx_from] == scaled_tw_open:
+            if (time_channel[i][idx_from] == scaled_tw_open) or abs(time_channel[i][idx_from] - time_to_depot) < eps:
+                print(f"DEBUG: testing forward insertion")
                 #then I can test for insertion after origin_idx
                 bw_mask = torch.zeros_like(travel_time_norm[i], device=travel_time_norm.device, dtype=torch.bool)
                 #fw_mask = get_forward_mask(idx_from, float(time_channel[i][idx_from]), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
                 fw_mask = get_forward_mask(idx_from, float(time_channel[i][idx_from]), travel_time_norm[i], instances[i], time_channel[i]) 
-            elif time_channel[i][idx_from] == scaled_tw_close:
+            elif abs(time_channel[i][idx_from] - scaled_tw_close) < eps:
+                print(f"DEBUG: testing backward insertion")
                 invert_connection[i] = True 
                 ends_on_depot_idx = []
                 for j, k in enumerate(instances[i].nn_input_idx_to_tour):
@@ -1073,7 +1133,10 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
                     bw_mask[index] = False
             else:
                 print(f"\n\nDEBUG: got time_channel[i][idx_from]: {time_channel[i][idx_from]} and scaled_tw_open = {scaled_tw_open} | scaled_tw_close = {scaled_tw_close}")
+                print(f"DEBUG: diffs: {time_channel[i][idx_from] - scaled_tw_open} and {time_channel[i][idx_from] - scaled_tw_close} vs eps: {eps}")
                 print(f"\n\nDEBUG: idx_from: {idx_from}")
+                print(f"DEBUG: cust: {cust} from tour: {t}")
+                print(f"DEBUG: time from depot = {instances[i].speed_f*instances[i].distances[0][cust]/instances[i].max_time}")
                 print(f"DEBUG: time_channel[i]")
                 for j, el in enumerate(time_channel):
                     print(j, el)
