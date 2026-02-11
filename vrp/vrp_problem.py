@@ -304,17 +304,21 @@ class VRPInstance():
         self._check_sol_sched_alignment()
 
     def compute_tour_schedule(self, tour):
+        print_debug = False
         if len(tour) == 1:
-            print(f"\nDEBUG: in compute_tour_schedule: tour: {tour}")
+            if print_debug:
+                print(f"\nDEBUG: in compute_tour_schedule: tour: {tour}")
             cust = tour[0][0]
             dist_from_depot = np.sqrt((self.locations[0][0] - self.locations[cust][0])**2 + (self.locations[0][1] - self.locations[cust][1])**2) 
             time_from_depot = self.speed_f*dist_from_depot
-            print(f"cust: {cust} | dist_from_depot: {dist_from_depot} | time_from_depot: {time_from_depot} ")
-            print(f"self.time_window[cust]: {self.time_window[cust]}")
+            if print_debug:
+                print(f"cust: {cust} | dist_from_depot: {dist_from_depot} | time_from_depot: {time_from_depot} ")
+                print(f"self.time_window[cust]: {self.time_window[cust]}")
             assert time_from_depot < int(self.time_window[cust][1])
             #schedule = [[int(self.time_window[cust][0]), int(self.time_window[cust][1])]]
             schedule = [[max(int(time_from_depot), int(self.time_window[cust][0])), int(self.time_window[cust][1])]]
-            print(f"Set schedule to: {schedule}")
+            if print_debug:
+                print(f"Set schedule to: {schedule}")
             assert len(tour) == len(schedule)
             return schedule
         elif len(tour) > 1:
@@ -490,15 +494,7 @@ class VRPInstance():
                 removed_customer_idx.append(e[0])
 
         # Remove the tours that are marked for removal from the solution
-        print(f"DEBUG: tours_to_remove_idx: {tours_to_remove_idx}")
         for index in sorted(tours_to_remove_idx, reverse=True):
-            print(f"DEBUG: removing index: {index}")
-            print(f"DEBUG: self.solution:")
-            for j, el in enumerate(self.solution):
-                print(j, el)
-            print(f"DEBUG: self.schedule:")
-            for j, el in enumerate(self.schedule):
-                print(j, el)
             del self.solution[index]
             del self.schedule[index]
 
@@ -509,21 +505,24 @@ class VRPInstance():
         self._check_sol_sched_alignment()
         
     def _check_sol_sched_alignment(self):
+        print_debug = False
         if len(self.solution) != len(self.schedule):
-            print(f"\n\n\t\tERROR in _check_sol_sched_alignment:")
-            print(f"\t\tself.solution:")
-            for j, el in enumerate(self.solution):
-                print('\t\t', j, el)
-            print(f"\t\tself.schedule:")
-            for j, el in enumerate(self.schedule):
-                print('\t\t', j, el)
+            if print_debug:
+                print(f"\n\n\t\tERROR in _check_sol_sched_alignment:")
+                print(f"\t\tself.solution:")
+                for j, el in enumerate(self.solution):
+                    print('\t\t', j, el)
+                print(f"\t\tself.schedule:")
+                for j, el in enumerate(self.schedule):
+                    print('\t\t', j, el)
             raise AssertionError
         else:
             for sol, sched in zip(self.solution, self.schedule):
                 if len(sol) != len(sched):
-                    print(f"\n\n\t\tERROR in _check_sol_sched_alignment:")
-                    print(f"\t\tsol: {sol}")
-                    print(f"\t\tsched: {sched}")
+                    if print_debug:
+                        print(f"\n\n\t\tERROR in _check_sol_sched_alignment:")
+                        print(f"\t\tsol: {sol}")
+                        print(f"\t\tsched: {sched}")
                     raise AssertionError
 
     def _get_incomplete_tours(self):
@@ -699,7 +698,6 @@ class VRPInstance():
         nn_input_update = []  # Instead of recalculating the tensor representation, we only compute an update description.
         try:
             # Case 1
-            print_debug = True
             if print_debug:
                 print(f"DEBUG: Called do_action with: tour_from: {tour_from} | tour_to: {tour_to}")
 
@@ -910,6 +908,7 @@ class VRPInstance():
 
     def get_last_dim(self, static_input, origin_idx, print_debug=False):
         # (N, 2) coords in NN-input space
+        print_debug=False
         if print_debug:
             print(f"\nDEBUG: in get_last_dim: (origin_idx = {origin_idx})")
         coords      = static_input[:, :2]
@@ -943,7 +942,7 @@ class VRPInstance():
         for j in self.open_nn_input_idx:
             t, pos = self.nn_input_idx_to_tour[j]
             idx = self.get_idx_in_solution(t, pos)
-            print_debug=True
+            print_debug = False
             if print_debug:
                 if j == origin_idx:
                     print(f"\n\t -> Doing index {j} | {t} | {pos}")
@@ -958,26 +957,30 @@ class VRPInstance():
 
 
             if (len(prev_t) == len(t)) and (prev_t[0][0] == t[0][0]) and (t[0][0] != 0):
-                print(f"\tDEBUG: index {j} is first case")
                 if current_pos == 0:
                     current_times[j] = self.schedule[idx][pos][0]
                 else:
                     current_times[j] = self.schedule[idx][pos][1]
-                print(f"\tDEBUG: set current_times[{j}] = {current_times[j]}")
+                if print_debug:
+                    print(f"\tDEBUG: index {j} is first case")
+                    print(f"\tDEBUG: set current_times[{j}] = {current_times[j]}")
             else:
-                print(f"\tDEBUG: index {j} is second case")
+                if print_debug:
+                    print(f"\tDEBUG: index {j} is second case")
                 if current_pos == 0:
-                    print(f"\tDEBUG: self.solution:")
-                    for k, el in enumerate(self.solution):
-                        print('\t', k, el)
-                    print(f"\tDEBUG: self.schedule:")
-                    for k, el in enumerate(self.schedule):
-                        print('\t', k, el)
                     current_times[j] = self.schedule[idx][pos][1]
-                    print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][1]: {current_times[j]}")
+                    if print_debug:
+                        print(f"\tDEBUG: self.solution:")
+                        for k, el in enumerate(self.solution):
+                            print('\t', k, el)
+                        print(f"\tDEBUG: self.schedule:")
+                        for k, el in enumerate(self.schedule):
+                            print('\t', k, el)
+                        print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][1]: {current_times[j]}")
                 else:
                     current_times[j] = self.schedule[idx][pos][0]
-                    print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][0]: {current_times[j]}")
+                    if print_debug:
+                        print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][0]: {current_times[j]}")
 
             prev_t = t
 
@@ -1053,6 +1056,7 @@ def get_backward_mask(origin_idx, scaled_time, scaled_travel_times, inst, tw):
 
 def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config, capacity):
     """ Returns a mask for the current nn_input"""
+    print_debug = False
     assert len(dynamic_input.shape) == 3
     assert dynamic_input.shape[-1] == 4
     device = dynamic_input.device
@@ -1063,10 +1067,11 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
 
     dist_channel = dynamic_input[:, :, -2]
     time_channel = dynamic_input[:, :, -1]
-    print(f"\nDEBUG: in get_mask")
-    print(f"DEBUG: dynamic_input:")
-    for j, el in enumerate(dynamic_input[:, :, -2:]):
-        print(j, el)
+    if print_debug:
+        print(f"\nDEBUG: in get_mask")
+        print(f"DEBUG: dynamic_input:")
+        for j, el in enumerate(dynamic_input[:, :, -2:]):
+            print(j, el)
     speed_f = torch.tensor([ins.speed_f for ins in instances], device=device, dtype=dtype)
     max_time = torch.tensor([ins.max_time for ins in instances], device=device, dtype=dtype)
 
@@ -1075,29 +1080,31 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
     tw_norm = static_input[:, :, 2:] # two dimensional
     time_feasible = torch.zeros_like(time_channel, dtype=torch.bool, device=device)
     for i in range(batch_size):
-        print(f"Doing instance {i}")
+        if print_debug:
+            print(f"Doing instance {i}")
         idx_from = origin_nn_input_idx[i].item()
         origin_tour, origin_pos = instances[i].nn_input_idx_to_tour[idx_from]
-        print(f"DEBUG: origin_tour: {origin_tour}")
-        print(f"DEBUG: instances[i].nn_input_idx_to_tour:")
-        for j, el in enumerate(instances[i].nn_input_idx_to_tour):
-            if j in instances[i].open_nn_input_idx:
-                print('  ', j, el)
-            else:
-                print('X ', j, el)
-        print(f"DEBUG: time_channel[i]:")
-        for j, el in enumerate(time_channel[i]):
-            if j != idx_from:
-                print('  ', j, el)
-            else:
-                print('->', j, el)
-        print(f"DEBUG: time_windows:")
-        for j, el in enumerate(instances[i].time_window):
-            print(j, el)
-        print(f"DEBUG: times_from_depots:")
-        for j, el in enumerate(instances[i].locations):
-            dist = np.sqrt((instances[i].distances[0][0] - instances[i].distances[j][0])**2 - (instances[i].distances[0][1] - instances[i].distances[j][1])**2)
-            print(j, dist*instances[i].speed_f)
+        if print_debug:
+            print(f"DEBUG: origin_tour: {origin_tour}")
+            print(f"DEBUG: instances[i].nn_input_idx_to_tour:")
+            for j, el in enumerate(instances[i].nn_input_idx_to_tour):
+                if j in instances[i].open_nn_input_idx:
+                    print('  ', j, el)
+                else:
+                    print('X ', j, el)
+            print(f"DEBUG: time_channel[i]:")
+            for j, el in enumerate(time_channel[i]):
+                if j != idx_from:
+                    print('  ', j, el)
+                else:
+                    print('->', j, el)
+            print(f"DEBUG: time_windows:")
+            for j, el in enumerate(instances[i].time_window):
+                print(j, el)
+            print(f"DEBUG: times_from_depots:")
+            for j, el in enumerate(instances[i].locations):
+                dist = np.sqrt((instances[i].distances[0][0] - instances[i].distances[j][0])**2 - (instances[i].distances[0][1] - instances[i].distances[j][1])**2)
+                print(j, dist*instances[i].speed_f)
 
 
         
@@ -1109,13 +1116,15 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
             time_to_depot = instances[i].speed_f*instances[i].distances[0][cust]/instances[i].max_time 
 
             if (time_channel[i][idx_from] == scaled_tw_open) or abs(time_channel[i][idx_from] - time_to_depot) < eps:
-                print(f"DEBUG: testing forward insertion")
+                if print_debug:
+                    print(f"DEBUG: testing forward insertion")
                 #then I can test for insertion after origin_idx
                 bw_mask = torch.zeros_like(travel_time_norm[i], device=travel_time_norm.device, dtype=torch.bool)
                 #fw_mask = get_forward_mask(idx_from, float(time_channel[i][idx_from]), travel_time_norm[i], instances[i], tw_norm[i, :, 1]) 
                 fw_mask = get_forward_mask(idx_from, float(time_channel[i][idx_from]), travel_time_norm[i], instances[i], time_channel[i]) 
             elif abs(time_channel[i][idx_from] - scaled_tw_close) < eps:
-                print(f"DEBUG: testing backward insertion")
+                if print_debug:
+                    print(f"DEBUG: testing backward insertion")
                 invert_connection[i] = True 
                 ends_on_depot_idx = []
                 for j, k in enumerate(instances[i].nn_input_idx_to_tour):

@@ -9,6 +9,7 @@ import logging
 log = logging.getLogger(__name__)
 
 def _actor_model_forward(actor, instances, static_input, dynamic_input, config, vehicle_capacity, rng):
+    print_debug = False
     batch_size = static_input.shape[0]
     N = static_input.shape[1]
     tour_idx, tour_logp = [], []
@@ -26,14 +27,15 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
                     origin_idx[i] = np.random.choice(instance.open_nn_input_idx, 1).item()
                 else:
                     origin_idx[i] = rng.choice(instance.open_nn_input_idx, 1).item()
-            last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i], print_debug=True)
+            last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i], print_debug=print_debug)
 
         # Rescale customer demand based on vehicle capacity
         dynamic_input_last_dim = torch.cat((dynamic_input, last_dim), dim=-1)
         origin_cust = instances[0].nn_input_idx_to_tour[origin_idx[0]][0][instances[0].nn_input_idx_to_tour[origin_idx[0]][1]][0]
-         
-        print(f"DEBUG: in _actor_model_forward: dynamic_input_last_dim:")
-        print(dynamic_input_last_dim)
+        
+        if print_debug:
+            print(f"DEBUG: in _actor_model_forward: dynamic_input_last_dim:")
+            print(dynamic_input_last_dim)
         mask, invert_connection = vrp_problem.get_mask(origin_idx, static_input, dynamic_input_last_dim, instances, config, vehicle_capacity)
         mask = mask.to(config.device).float()
         # mask: (batch, N) float/bool-like
@@ -75,7 +77,8 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
         nn_input_updates = []
         ptr_np = ptr.cpu().numpy()
         for i, instance in enumerate(instances):
-            print(f"DEBUG: doing instance {i}/{len(instances) -1}")
+            if print_debug:
+                print(f"DEBUG: doing instance {i}/{len(instances) -1}")
             idx_from = origin_idx[i].item()
             idx_to = ptr_np[i]
             if invert_connection[i]:

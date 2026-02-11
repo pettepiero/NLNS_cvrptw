@@ -15,6 +15,7 @@ from plot.plot import plot_instance
 def lns_single_seach_job(args):
     try:
         id, config, instance_path, model_path, queue_jobs, queue_results, pkl_instance_id = args
+        print_debug = False
 
         rng = np.random.default_rng(id)
         operator_pairs = search.load_operator_pairs(model_path, config)
@@ -43,7 +44,8 @@ def lns_single_seach_job(args):
             #config.lns_batch_size = 2
 
             instance_copies = [deepcopy(instance) for _ in range(config.lns_batch_size)]
-            print(f"DEBUG: copied {config.lns_batch_size} times")
+            if print_debug:
+                print(f"DEBUG: copied {config.lns_batch_size} times")
             for inst in instance_copies:
                 inst._check_sol_sched_alignment()
 
@@ -51,23 +53,28 @@ def lns_single_seach_job(args):
             # Repeat until the time limit of one reheating iteration is reached
             while time.time() - start_time_reheating < config.lns_timelimit / config.lns_reheating_nb:
                 iter += 1
-                print(f"\n iter {iter}")
+                if print_debug:
+                    print(f"\n iter {iter}")
 
                 for k, inst in enumerate(instance_copies):
-                    print(f"Testing instance {k}/{len(instance_copies)}")
+                    if print_debug:
+                        print(f"Testing instance {k}/{len(instance_copies)}")
                     inst._check_sol_sched_alignment()
 
 
-                print(f"\nDEBUG: copying the first {config.lns_Z_param} percent of the instances in the batch to the last accepted solution...")
+                if print_debug:
+                    print(f"\nDEBUG: copying the first {config.lns_Z_param} percent of the instances in the batch to the last accepted solution...")
                 # Set the first config.lns_Z_param percent of the instances/solutions in the batch
                 # to the last accepted solution
                 for i in range(int(config.lns_Z_param * config.lns_batch_size)):
                     instance_copies[i] = deepcopy(instance)
 
-                print(f"... done\n")
+                if print_debug:
+                    print(f"... done\n")
 
                 for k, inst in enumerate(instance_copies):
-                    print(f"Testing instance {k}/{len(instance_copies)}")
+                    if print_debug:
+                        print(f"Testing instance {k}/{len(instance_copies)}")
                     inst._check_sol_sched_alignment()
 
                 # Select an LNS operator pair (destroy + repair operator)
@@ -76,22 +83,25 @@ def lns_single_seach_job(args):
                 actor = operator_pairs[selected_operator_pair_id].model
                 destroy_procedure = operator_pairs[selected_operator_pair_id].destroy_procedure
                 p_destruction = operator_pairs[selected_operator_pair_id].p_destruction
-                print(f"DEBUG: chosen p_destruction: {p_destruction}")
-                print(f"DEBUG: chosen destroy_procedure: {destroy_procedure}")
+                if print_debug:
+                    print(f"DEBUG: chosen p_destruction: {p_destruction}")
+                    print(f"DEBUG: chosen destroy_procedure: {destroy_procedure}")
 
                 for k, inst in enumerate(instance_copies):
-                    print(f"Testing instance {k}/{len(instance_copies)}")
+                    if print_debug:
+                        print(f"Testing instance {k}/{len(instance_copies)}")
                     inst._check_sol_sched_alignment()
 
-                print(f"\t\nDEBUG: before destroy_instances:")
-                for i, inst in enumerate(instance_copies):
-                    print(f"\t\tinstance: {i}")
-                    print(f"\t\tinstance.solution")
-                    for j, el in enumerate(inst.solution):
-                        print('\t\t', j, el)
-                    print(f"\t\tinst.schedule:")
-                    for j, el in enumerate(inst.schedule):
-                        print('\t\t', j, el)
+                if print_debug:
+                    print(f"\t\nDEBUG: before destroy_instances:")
+                    for i, inst in enumerate(instance_copies):
+                        print(f"\t\tinstance: {i}")
+                        print(f"\t\tinstance.solution")
+                        for j, el in enumerate(inst.solution):
+                            print('\t\t', j, el)
+                        print(f"\t\tinst.schedule:")
+                        for j, el in enumerate(inst.schedule):
+                            print('\t\t', j, el)
 
                 # Destroy instances
                 search.destroy_instances(rng, instance_copies, destroy_procedure, p_destruction)
@@ -99,15 +109,16 @@ def lns_single_seach_job(args):
                     inst._check_sol_sched_alignment()
 
                 #DEBUG
-                print(f"\t\nDEBUG: after destroy_instances:")
-                for i, inst in enumerate(instance_copies):
-                    print(f"\t\tinstance: {i}")
-                    print(f"\t\tinstance.solution")
-                    for j, el in enumerate(inst.solution):
-                        print('\t\t', j, el)
-                    print(f"\t\tinst.schedule:")
-                    for j, el in enumerate(inst.schedule):
-                        print('\t\t', j, el)
+                if print_debug:
+                    print(f"\t\nDEBUG: after destroy_instances:")
+                    for i, inst in enumerate(instance_copies):
+                        print(f"\t\tinstance: {i}")
+                        print(f"\t\tinstance.solution")
+                        for j, el in enumerate(inst.solution):
+                            print('\t\t', j, el)
+                        print(f"\t\tinst.schedule:")
+                        for j, el in enumerate(inst.schedule):
+                            print('\t\t', j, el)
 
                 # Repair instances
                 for i in range(int(len(instance_copies) / config.lns_batch_size)):
@@ -116,15 +127,16 @@ def lns_single_seach_job(args):
                             instance_copies[i * config.lns_batch_size: (i + 1) * config.lns_batch_size], actor, config)
 
                 #DEBUG
-                print(f"\t\nDEBUG: after repair:")
-                for i, inst in enumerate(instance_copies):
-                    print(f"\t\tinstance: {i}")
-                    print(f"\t\tinstance.solution")
-                    for j, el in enumerate(inst.solution):
-                        print('\t\t', j, el)
-                    print(f"\t\tinst.schedule:")
-                    for j, el in enumerate(inst.schedule):
-                        print('\t\t', j, el)
+                if print_debug:
+                    print(f"\t\nDEBUG: after repair:")
+                    for i, inst in enumerate(instance_copies):
+                        print(f"\t\tinstance: {i}")
+                        print(f"\t\tinstance.solution")
+                        for j, el in enumerate(inst.solution):
+                            print('\t\t', j, el)
+                        print(f"\t\tinst.schedule:")
+                        for j, el in enumerate(inst.schedule):
+                            print('\t\t', j, el)
 
                 for inst in instance_copies:
                     inst._check_sol_sched_alignment()
@@ -138,15 +150,17 @@ def lns_single_seach_job(args):
                 if iter == 0:
                     q75, q25 = np.percentile(costs, [75, 25])
                     T_max = q75 - q25
-                    print(f"DEBUG: costs: {costs}")
-                    print(f"DEBUG: T_max : {T_max}  | T_min: {T_min}")
+                    if print_debug:
+                        print(f"DEBUG: costs: {costs}")
+                        print(f"DEBUG: T_max : {T_max}  | T_min: {T_min}")
                     T_factor = -math.log(T_max / T_min)
 
                 min_costs = min(costs)
 
                 # Update incumbent if a new best solution is found
                 if min_costs <= incumbent_cost:
-                    print(f"\n\tDEBUG: incumbent cost found -> updating incumbent.solution and incumbent.schedule")
+                    if print_debug:
+                        print(f"\n\tDEBUG: incumbent cost found -> updating incumbent.solution and incumbent.schedule")
                     incumbent_solution = deepcopy(instance_copies[np.argmin(costs)].solution)
                     incumbent_schedule = [[x[:] for x in tour_sched] for tour_sched in instance_copies[np.argmin(costs)].schedule]
                     incumbent_cost = min_costs
@@ -160,7 +174,8 @@ def lns_single_seach_job(args):
                 # Accept a solution if the acceptance criteria is fulfilled
                 #if min_costs <= cur_cost or np.random.rand() < math.exp(-(min(costs) - cur_cost) / T):
                 if min_costs <= cur_cost or rng.random() < math.exp(-(min(costs) - cur_cost) / T):
-                    print(f"\n\tDEBUG: acceptance criteria in fulfilled -> updating instance.solution and instance.schedule")
+                    if print_debug:
+                        print(f"\n\tDEBUG: acceptance criteria in fulfilled -> updating instance.solution and instance.schedule")
                     #instance.solution = instance_copies[np.argmin(costs)].solution
                     #instance.schedule = [[x[:] for x in tour_sched] for tour_sched in instance_copies[np.argmin(costs)].schedule]
                     #instance.schedule = instance_copies[np.argmin(costs)].schedule
@@ -210,7 +225,6 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
     queue_jobs = m.Queue()
     queue_results = m.Queue()
     pool = Pool(processes=config.lns_nb_cpus)
-    print(f"\nDEBUG: pool size: {config.lns_nb_cpus}")
     pool.map_async(lns_single_seach_job,
                    [(i, config, instance_path, model_path, queue_jobs, queue_results, pkl_instance_id) for i in
                     range(config.lns_nb_cpus)])
