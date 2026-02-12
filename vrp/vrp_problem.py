@@ -411,7 +411,7 @@ class VRPInstance():
                 raise ValueError(
                     f"In get_schedule_for_backw_ins: Infeasible schedule for customer {cust}: "
                     f"{tour=}\n"
-                    f"schedule={reversed(schedule)}\n"
+                    f"schedule={list(reversed(schedule))}\n"
                     f"{self.time_window=}\n"
                     f"{start_service=} < {tw_start=}"
                 )
@@ -467,7 +467,8 @@ class VRPInstance():
                 #arrival = travel_time
             else:
                 start = max(arrival, tw_open)
-                print(f"DEBUG: arrival = {arrival} | tw_open = {tw_open} -> start = {start}")
+                if print_debug:
+                    print(f"DEBUG: arrival = {arrival} | tw_open = {tw_open} -> start = {start}")
 
             if start > tw_close:
                 raise ValueError 
@@ -475,7 +476,8 @@ class VRPInstance():
             end = start + service_time
             schedule.append([start, end])
             arrival = end + travel_time
-            print(f"DEBUG: end = {end} | arrival = {arrival}")
+            if print_debug:
+                print(f"DEBUG: end = {end} | arrival = {arrival}")
             if arrival > nc_tw_close:
                 print(f"\n\nERROR in get_schedule_complete: arrival = {arrival} | nc_tw_close = {nc_tw_close }")
                 print(f"\t    DEBUG: failed on tour: {tour} at index {i}")
@@ -1128,6 +1130,7 @@ class VRPInstance():
     def get_last_dim(self, static_input, origin_idx, print_debug=False):
         # (N, 2) coords in NN-input space
         print_debug=False
+        #print_debug=False
         if print_debug:
             print(f"\nDEBUG: in get_last_dim: (origin_idx = {origin_idx})")
         coords      = static_input[:, :2]
@@ -1161,7 +1164,7 @@ class VRPInstance():
         for j in self.open_nn_input_idx:
             t, pos = self.nn_input_idx_to_tour[j]
             idx = self.get_idx_in_solution(t, pos)
-            print_debug = False
+            #print_debug = False
             if print_debug:
                 if j == origin_idx:
                     print(f"\n\t -> Doing index {j} | {t} | {pos}")
@@ -1187,7 +1190,7 @@ class VRPInstance():
                 if print_debug:
                     print(f"\tDEBUG: index {j} is second case")
                 if current_pos == 0:
-                    current_times[j] = self.schedule[idx][pos][1]
+                    current_times[j] = self.schedule[idx][pos][0]
                     if print_debug:
                         print(f"\tDEBUG: self.solution:")
                         for k, el in enumerate(self.solution):
@@ -1195,11 +1198,11 @@ class VRPInstance():
                         print(f"\tDEBUG: self.schedule:")
                         for k, el in enumerate(self.schedule):
                             print('\t', k, el)
-                        print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][1]: {current_times[j]}")
-                else:
-                    current_times[j] = self.schedule[idx][pos][0]
-                    if print_debug:
                         print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][0]: {current_times[j]}")
+                else:
+                    current_times[j] = self.schedule[idx][pos][1]
+                    if print_debug:
+                        print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][1]: {current_times[j]}")
 
             prev_t = t
 
@@ -1254,7 +1257,7 @@ class VRPInstance():
 
 
 def get_forward_mask(origin_idx, scaled_time, scaled_travel_times, inst, tw):
-    print_debug = True 
+    print_debug = False 
     assert isinstance(scaled_time, float)
     assert len(scaled_travel_times) == len(tw)
     scaled_time = torch.tensor(scaled_time, device=scaled_travel_times.device).unsqueeze(-1)
@@ -1282,7 +1285,7 @@ def get_backward_mask(origin_idx, scaled_time, scaled_travel_times, inst, tw):
 
 def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config, capacity):
     """ Returns a mask for the current nn_input"""
-    print_debug = True 
+    print_debug = False 
     assert len(dynamic_input.shape) == 3
     assert dynamic_input.shape[-1] == 4
     device = dynamic_input.device
