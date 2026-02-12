@@ -309,6 +309,54 @@ class VRPInstance():
             return 0
         else:
             return len(tour) -1
+
+    def get_schedule_for_forw_ins(self, tour):
+        """
+        Returns schedule squashed to the left as much as possible.
+        Assumes last customer in tour is not depot (0).
+        """
+        assert tour[-1][0] != 0, "Last customer cannot be depot for forward insertion"
+    
+        customers = [el[0] for el in tour]
+        time_windows = [self.time_window[c] for c in customers]
+    
+        max_time = int(self.max_time)
+        service_time = int(self.service_time)
+    
+        schedule = []
+    
+        # Initial state: first visited customer must be able to be visited right after depot
+        current_time = 0.0 
+        travel_time = float(self.speed_f * self.distances[customers[0]][0])
+    
+        for i in range(len(customers)):
+            cust = customers[i]
+            tw_start = int(time_windows[i][0])
+            tw_end   = int(time_windows[i][1])
+
+            # Service time (depot has zero service time)
+            st = 0 if cust == 0 else service_time
+    
+            # Latest feasible service start time
+            start_service = max(current_time + travel_time, tw_start)
+    
+            if start_service > tw_end:
+                raise ValueError(
+                    f"Infeasible schedule for customer {cust}: "
+                    f"{start_service=} > {tw_end=}"
+                )
+    
+            schedule.append([start_service, start_service + st])
+    
+            # Update for next iteration (move forward)
+            current_time = start_service + st
+            if i < len(customers) -1:
+                next_cust = customers[i + 1]
+                travel_time = self.speed_f * self.distances[cust][next_cust]
+    
+        return schedule
+
+
     
     def get_schedule_for_backw_ins(self, tour):
         """
@@ -340,7 +388,7 @@ class VRPInstance():
             # Latest feasible service start time
             start_service = min(current_time - travel_time - st, tw_end)
     
-            if start_service < tw_start:
+            if start_service <= tw_start:
                 raise ValueError(
                     f"Infeasible schedule for customer {cust}: "
                     f"{start_service=} < {tw_start=}"

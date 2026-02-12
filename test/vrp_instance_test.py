@@ -245,6 +245,44 @@ class test_schedule_functions(unittest.TestCase):
             self.assertEqual(exp, comp)
 
 
+    def test_get_schedule_for_forw_ins(self):
+        inst = self.instance
+        #print("Instance initial solution:")
+        #for el in inst.solution:
+        #    print(el)
+        #print("\n\n")
+        #print(f"TIME WINDOWS:")
+        #for j, el in enumerate(inst.time_window):
+        #    print(j, el)
+        #print(f"DISTANCES:")
+        #for j, el in enumerate(inst.distances):
+        #    print(j, el)
+        #print(f"inst.speed_f = {inst.speed_f} | service_time = {inst.service_time}")
+        #print(f"tour: {inst.solution[1]}")
+        sched = inst.get_schedule_for_forw_ins(inst.solution[1])
+
+        expected_sched = [[0, 0], [8192, 8292]]
+        for exp, comp in zip(expected_sched, sched):
+            self.assertEqual(exp, comp)
+
+        self.instance = read_instance_vrp('./test/test_instance.vrp')
+        inst = self.instance
+        inst.create_initial_solution()
+        inst.destroy([7])  # remove customer 5 (pick any valid customer index)
+
+        sched = inst.get_schedule_for_forw_ins(inst.solution[2])
+        expected_sched = [[0, 0], [2410, 2510], [5087, 5187]]
+        for exp, comp in zip(expected_sched, sched):
+            self.assertEqual(exp, comp)
+
+
+        inst.solution[-2] = inst.solution[-2][1:-1]
+        sched = inst.get_schedule_for_forw_ins(inst.solution[-2])
+        expected_sched = [[495, 595], [4402, 4502]]
+        for exp, comp in zip(expected_sched, sched):
+            self.assertTrue(exp[0] - comp[0] < 1)
+            self.assertTrue(exp[1] - comp[1] < 1)
+
 if __name__ == '__main__':
     unittest.main()
 
