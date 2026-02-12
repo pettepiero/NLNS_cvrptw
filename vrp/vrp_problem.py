@@ -341,8 +341,20 @@ class VRPInstance():
             start_service = max(current_time + travel_time, tw_start)
     
             if start_service > tw_end:
+                print(f"DEBUG: failes in get_schedule_for_back_ins: ")
+                print(f"tour: {tour}")
+                print(f"self.speed_f = {self.speed_f}")
+                print(f"time_window")
+                for j, el in enumerate(self.time_window):
+                    print(j, el)
+                print(f"distances")
+                for j, el in enumerate(self.distances):
+                    print(j, el)
                 raise ValueError(
-                    f"Infeasible schedule for customer {cust}: "
+                    f"In get_schedule_for_forw_ins: Infeasible schedule for customer {cust}: "
+                    f"{tour=}\n"
+                    f"{schedule=}\n"
+                    f"{self.time_window=}\n"
                     f"{start_service=} > {tw_end=}"
                 )
     
@@ -355,8 +367,6 @@ class VRPInstance():
                 travel_time = self.speed_f * self.distances[cust][next_cust]
     
         return schedule
-
-
     
     def get_schedule_for_backw_ins(self, tour):
         """
@@ -389,8 +399,20 @@ class VRPInstance():
             start_service = min(current_time - travel_time - st, tw_end)
     
             if start_service <= tw_start:
+                print(f"DEBUG: failes in get_schedule_for_back_ins: ")
+                print(f"tour: {tour}")
+                print(f"self.speed_f = {self.speed_f}")
+                print(f"time_window")
+                for j, el in enumerate(self.time_window):
+                    print(j, el)
+                print(f"distances")
+                for j, el in enumerate(self.distances):
+                    print(j, el)
                 raise ValueError(
-                    f"Infeasible schedule for customer {cust}: "
+                    f"In get_schedule_for_backw_ins: Infeasible schedule for customer {cust}: "
+                    f"{tour=}\n"
+                    f"schedule={reversed(schedule)}\n"
+                    f"{self.time_window=}\n"
                     f"{start_service=} < {tw_start=}"
                 )
     
@@ -405,14 +427,95 @@ class VRPInstance():
         schedule.reverse()
         return schedule
 
+    def get_schedule_complete(self, tour):
+        print_debug = False
+        assert tour[0][0] == 0
+        assert tour[-1][0] == 0
+        schedule = []
+        current_cust = None
+        arrival = None
+        start = None
+        for i in range(len(tour) -1):
+            service_time = self.service_time
+            end = None
+            current_cust = tour[i][0]
+            next_cust = tour[i+1][0]
+            travel_time = self.speed_f * self.distances[current_cust][next_cust]
+            tw_open, tw_close = self.time_window[current_cust]
+            nc_tw_open, nc_tw_close = self.time_window[next_cust]
+            if print_debug:
+                print(f"\ni = {i}")
+                print(f"current_cust = {current_cust}")
+                print(f"service_time = {service_time}")
+                print(f"start = {start}")
+                print(f"end = {end}")
+                print(f"travel_time = {travel_time}")
+            if i == 0:
+                if print_debug:
+                    print(f"first iter")
+                if current_cust == 0:
+                    if print_debug:
+                        print(f"current_cust = 0")
+                    start = 0 #for depot start from 0
+                    service_time = 0
+                elif current_cust != 0:
+                    start = max(tw_open, self.speed_f * self.distances[0][current_cust])
+                    if print_debug:
+                        print(f"current_cust != 0, set start = {start}")
+                        print(f"tw_open = {tw_open} | self.speed_f * self.distances[0][current_cust] = {self.speed_f * self.distances[0][current_cust]}")
+                #start = 0
+                #arrival = travel_time
+            else:
+                start = max(arrival, tw_open)
+                print(f"DEBUG: arrival = {arrival} | tw_open = {tw_open} -> start = {start}")
+
+            if start > tw_close:
+                raise ValueError 
+
+            end = start + service_time
+            schedule.append([start, end])
+            arrival = end + travel_time
+            print(f"DEBUG: end = {end} | arrival = {arrival}")
+            if arrival > nc_tw_close:
+                print(f"\n\nERROR in get_schedule_complete: arrival = {arrival} | nc_tw_close = {nc_tw_close }")
+                print(f"\t    DEBUG: failed on tour: {tour} at index {i}")
+                print(f"\t    DEBUG: solution:")
+                for el in self.solution:
+                    print(f"\t     {el}")
+                print(f"\t    current_cust: {current_cust}")
+                print(f"\t    next_cust: {next_cust}")
+                print(f"\t    start: {start}")
+                print(f"\t    end: {end}")
+                print(f"\t    arrival at next cust: {arrival}")
+                print(f"\t    tw_open: {tw_open}")
+                print(f"\t    tw_close: {tw_close}")
+                print(f"\t    nc_tw_open: {nc_tw_open}")
+                print(f"\t    nc_tw_close: {nc_tw_close}")
+                print(f"\t    travel_time: {travel_time}")
+                print(f"\t    service_time: {service_time}")
+                print(f"\t    schedule: {schedule}")
+                print(f"\t    DEBUG: time_window:")
+                for j, el in enumerate(self.time_window):
+                    print(f"\t    {j}, {el}")
+                raise ValueError
+            
+        last_cust = tour[-1][0]
+        tw_open, tw_close = self.time_window[last_cust]
+        travel_time = self.speed_f * self.distances[current_cust][last_cust]
+        start = max(arrival, tw_open)
+        if last_cust == 0:
+            end = start 
+        else:
+            end = start + self.service_time
+        schedule.append([start, end]) 
+
+        assert len(tour) == len(schedule)
+        return schedule
 
     def compute_tour_schedule(self, tour):
-        custs = [el[0] for el in tour]
-        if 24 in custs:
-            print_debug=True
-        else:
-            print_debug=False
-        del custs
+        print_debug = False 
+        if print_debug:
+            print(f"\nDEBUG: in compute_tour_schedule: tour: {tour}")
         if len(tour) == 1:
             cust = tour[0][0]
             dist_from_depot = np.sqrt((self.locations[0][0] - self.locations[cust][0])**2 + (self.locations[0][1] - self.locations[cust][1])**2) 
@@ -428,91 +531,123 @@ class VRPInstance():
                 print(f"Set schedule to: {schedule}")
             assert len(tour) == len(schedule)
             return schedule
-        elif len(tour) > 1:
-            if print_debug:
-                print(f"DEBUG: computing schedule for tour: {tour} (len > 1)")
-            schedule = []
-            current_cust = None
-            arrival = None
-            start = None
-            for i in range(len(tour) -1):
-                service_time = self.service_time
-                end = None
-                current_cust = tour[i][0]
-                next_cust = tour[i+1][0]
-                travel_time = self.speed_f * self.distances[current_cust][next_cust]
-                tw_open, tw_close = self.time_window[current_cust]
-                nc_tw_open, nc_tw_close = self.time_window[next_cust]
-                if print_debug:
-                    print(f"\ni = {i}")
-                    print(f"current_cust = {current_cust}")
-                    print(f"service_time = {service_time}")
-                    print(f"start = {start}")
-                    print(f"end = {end}")
-                    print(f"travel_time = {travel_time}")
-                if i == 0:
-                    if print_debug:
-                        print(f"first iter")
-                    if current_cust == 0:
-                        if print_debug:
-                            print(f"current_cust = 0")
-                        start = 0 #for depot start from 0
-                        service_time = 0
-                    elif current_cust != 0:
-                        start = max(tw_open, self.speed_f * self.distances[0][current_cust])
-                        if print_debug:
-                            print(f"current_cust != 0, set start = {start}")
-                            print(f"tw_open = {tw_open} | self.speed_f * self.distances[0][current_cust] = {self.speed_f * self.distances[0][current_cust]}")
-                    #start = 0
-                    #arrival = travel_time
-                else:
-                    start = max(arrival, tw_open)
-                    print(f"DEBUG: arrival = {arrival} | tw_open = {tw_open} -> start = {start}")
-
-                if start > tw_close:
-                    raise ValueError 
-
-                end = start + service_time
-                schedule.append([start, end])
-                arrival = end + travel_time
-                print(f"DEBUG: end = {end} | arrival = {arrival}")
-                if arrival > nc_tw_close:
-                    print(f"\n\nERROR in compute_tour_schedule: arrival = {arrival} | nc_tw_close = {nc_tw_close }")
-                    print(f"\t    DEBUG: failed on tour: {tour} at index {i}")
-                    print(f"\t    DEBUG: solution:")
-                    for el in self.solution:
-                        print(f"\t     {el}")
-                    print(f"\t    current_cust: {current_cust}")
-                    print(f"\t    next_cust: {next_cust}")
-                    print(f"\t    start: {start}")
-                    print(f"\t    end: {end}")
-                    print(f"\t    arrival at next cust: {arrival}")
-                    print(f"\t    tw_open: {tw_open}")
-                    print(f"\t    tw_close: {tw_close}")
-                    print(f"\t    nc_tw_open: {nc_tw_open}")
-                    print(f"\t    nc_tw_close: {nc_tw_close}")
-                    print(f"\t    travel_time: {travel_time}")
-                    print(f"\t    service_time: {service_time}")
-                    print(f"\t    schedule: {schedule}")
-                    print(f"\t    DEBUG: time_window:")
-                    for j, el in enumerate(self.time_window):
-                        print(f"\t    {j}, {el}")
-                    raise ValueError
-                
-            last_cust = tour[-1][0]
-            tw_open, tw_close = self.time_window[last_cust]
-            travel_time = self.speed_f * self.distances[current_cust][last_cust]
-            start = max(arrival, tw_open)
-            if last_cust == 0:
-                end = start 
-            else:
-                end = start + self.service_time
-            schedule.append([start, end]) 
-
-            assert len(tour) == len(schedule)
-            return schedule
         else:
-            return None
+            tour_end_pos = self.get_tour_end_position(tour)
+            if tour[0][0] == 0 and tour[-1][0] == 0:
+                return self.get_schedule_complete(tour)
+            if tour_end_pos == 0:
+                return self.get_schedule_for_backw_ins(tour) 
+            else:
+                return self.get_schedule_for_forw_ins(tour)
+
+
+    #def compute_tour_schedule(self, tour):
+    #    custs = [el[0] for el in tour]
+    #    if 24 in custs:
+    #        print_debug=True
+    #    else:
+    #        print_debug=False
+    #    del custs
+    #    if len(tour) == 1:
+    #        cust = tour[0][0]
+    #        dist_from_depot = np.sqrt((self.locations[0][0] - self.locations[cust][0])**2 + (self.locations[0][1] - self.locations[cust][1])**2) 
+    #        time_from_depot = self.speed_f*dist_from_depot
+    #        if print_debug:
+    #            print(f"\nDEBUG: in compute_tour_schedule: tour: {tour}")
+    #            print(f"cust: {cust} | dist_from_depot: {dist_from_depot} | time_from_depot: {time_from_depot} ")
+    #            print(f"cust location: {self.locations[cust]} | depot location: {self.locations[0]}")
+    #            print(f"self.time_window[cust]: {self.time_window[cust]}")
+    #        assert time_from_depot < self.time_window[cust][1]
+    #        schedule = [[max(time_from_depot, self.time_window[cust][0]), self.time_window[cust][1]]]
+    #        if print_debug:
+    #            print(f"Set schedule to: {schedule}")
+    #        assert len(tour) == len(schedule)
+    #        return schedule
+    #    elif len(tour) > 1:
+    #        if print_debug:
+    #            print(f"DEBUG: computing schedule for tour: {tour} (len > 1)")
+    #        schedule = []
+    #        current_cust = None
+    #        arrival = None
+    #        start = None
+    #        for i in range(len(tour) -1):
+    #            service_time = self.service_time
+    #            end = None
+    #            current_cust = tour[i][0]
+    #            next_cust = tour[i+1][0]
+    #            travel_time = self.speed_f * self.distances[current_cust][next_cust]
+    #            tw_open, tw_close = self.time_window[current_cust]
+    #            nc_tw_open, nc_tw_close = self.time_window[next_cust]
+    #            if print_debug:
+    #                print(f"\ni = {i}")
+    #                print(f"current_cust = {current_cust}")
+    #                print(f"service_time = {service_time}")
+    #                print(f"start = {start}")
+    #                print(f"end = {end}")
+    #                print(f"travel_time = {travel_time}")
+    #            if i == 0:
+    #                if print_debug:
+    #                    print(f"first iter")
+    #                if current_cust == 0:
+    #                    if print_debug:
+    #                        print(f"current_cust = 0")
+    #                    start = 0 #for depot start from 0
+    #                    service_time = 0
+    #                elif current_cust != 0:
+    #                    start = max(tw_open, self.speed_f * self.distances[0][current_cust])
+    #                    if print_debug:
+    #                        print(f"current_cust != 0, set start = {start}")
+    #                        print(f"tw_open = {tw_open} | self.speed_f * self.distances[0][current_cust] = {self.speed_f * self.distances[0][current_cust]}")
+    #                #start = 0
+    #                #arrival = travel_time
+    #            else:
+    #                start = max(arrival, tw_open)
+    #                print(f"DEBUG: arrival = {arrival} | tw_open = {tw_open} -> start = {start}")
+
+    #            if start > tw_close:
+    #                raise ValueError 
+
+    #            end = start + service_time
+    #            schedule.append([start, end])
+    #            arrival = end + travel_time
+    #            print(f"DEBUG: end = {end} | arrival = {arrival}")
+    #            if arrival > nc_tw_close:
+    #                print(f"\n\nERROR in compute_tour_schedule: arrival = {arrival} | nc_tw_close = {nc_tw_close }")
+    #                print(f"\t    DEBUG: failed on tour: {tour} at index {i}")
+    #                print(f"\t    DEBUG: solution:")
+    #                for el in self.solution:
+    #                    print(f"\t     {el}")
+    #                print(f"\t    current_cust: {current_cust}")
+    #                print(f"\t    next_cust: {next_cust}")
+    #                print(f"\t    start: {start}")
+    #                print(f"\t    end: {end}")
+    #                print(f"\t    arrival at next cust: {arrival}")
+    #                print(f"\t    tw_open: {tw_open}")
+    #                print(f"\t    tw_close: {tw_close}")
+    #                print(f"\t    nc_tw_open: {nc_tw_open}")
+    #                print(f"\t    nc_tw_close: {nc_tw_close}")
+    #                print(f"\t    travel_time: {travel_time}")
+    #                print(f"\t    service_time: {service_time}")
+    #                print(f"\t    schedule: {schedule}")
+    #                print(f"\t    DEBUG: time_window:")
+    #                for j, el in enumerate(self.time_window):
+    #                    print(f"\t    {j}, {el}")
+    #                raise ValueError
+    #            
+    #        last_cust = tour[-1][0]
+    #        tw_open, tw_close = self.time_window[last_cust]
+    #        travel_time = self.speed_f * self.distances[current_cust][last_cust]
+    #        start = max(arrival, tw_open)
+    #        if last_cust == 0:
+    #            end = start 
+    #        else:
+    #            end = start + self.service_time
+    #        schedule.append([start, end]) 
+
+    #        assert len(tour) == len(schedule)
+    #        return schedule
+    #    else:
+    #        return None
 
 
     def destroy_random(self, p, rng):

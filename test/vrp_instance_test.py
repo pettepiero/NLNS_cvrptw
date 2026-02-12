@@ -234,9 +234,9 @@ class test_schedule_functions(unittest.TestCase):
         inst.create_initial_solution()
         inst.destroy([1])  # remove customer 5 (pick any valid customer index)
         inst.solution[-2] = inst.solution[-2][1:]
-        #print("\n")
-        #for el in inst.solution:
-        #    print(el)
+        print("\n")
+        for el in inst.solution:
+            print(el)
 
         #print(f"tour: {inst.solution[-2]}")
         expected_sched = [[1635, 1735], [2779, 2879]]
@@ -244,6 +244,19 @@ class test_schedule_functions(unittest.TestCase):
         for exp, comp in zip(expected_sched, sched):
             self.assertEqual(exp, comp)
 
+        #print(f"TIME WINDOWS:")
+        #for j, el in enumerate(inst.time_window):
+        #    print(j, el)
+        #print(f"DISTANCES:")
+        #for j, el in enumerate(inst.distances):
+        #    print(j, el)
+        #print(f"inst.speed_f = {inst.speed_f} | service_time = {inst.service_time}")
+        #print(f"tour: {inst.solution[-1]}")
+
+        expected_sched = [[4334, 4434]]
+        sched = inst.get_schedule_for_backw_ins(inst.solution[-1])
+        for exp, comp in zip(expected_sched, sched):
+            self.assertEqual(exp, comp)
 
     def test_get_schedule_for_forw_ins(self):
         inst = self.instance
