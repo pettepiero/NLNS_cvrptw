@@ -83,6 +83,7 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
             idx_to = ptr_np[i]
             if invert_connection[i]:
                 idx_from, idx_to = idx_to, idx_from
+                print(f"\tDEBUG: inverted idx_from with idx_to")
             #log.info(f"\t For instance {i}/{len(instances)} sampled: idx_from={idx_from}, idx_to={idx_to}")
             #log.info(f"\t It means tour_from: {instance.nn_input_idx_to_tour[idx_from][0]} | tour_to: {instance.nn_input_idx_to_tour[idx_to][0]}")
             #log.info(f"\t Used mask for above sample: {mask}")

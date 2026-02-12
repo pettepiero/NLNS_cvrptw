@@ -166,6 +166,85 @@ class test_get_last_dim(unittest.TestCase):
         self.assertTrue(torch.allclose(out_1d, expected, atol=1e-6))
 
 
+
+class test_schedule_functions(unittest.TestCase):
+    def setUp(self):
+        self.instance = read_instance_vrp('./test/test_instance.vrp')
+        inst = self.instance
+        inst.create_initial_solution()
+
+        expected_initial_tours = [
+                [[0, 0, 0]],
+                [[0, 0, 0], [2, 2, None], [3, 8, None], [0, 0, 0]],
+                [[0, 0, 0], [5, 6, None], [10, 4, None], [7, 4, None], [0, 0, 0]],
+                [[0, 0, 0], [8, 8, None], [4, 5, None], [0, 0, 0]],
+                [[0, 0, 0], [6, 10, None], [9, 7, None], [1, 3, None], [0, 0, 0]]]
+
+        for j, el in enumerate(inst.solution):
+            assert el == expected_initial_tours[j]
+
+        inst.destroy([5, 6, 3])  # remove customer 5 (pick any valid customer index)
+        
+        expected_after_destruction = [
+                [[0, 0, 0]],
+                [[0, 0, 0], [2, 2, None]],
+                [[3, 8, None]],
+                [[5, 6, None]],
+                [[10, 4, None], [7, 4, None], [0, 0, 0]],
+                [[0, 0, 0], [8, 8, None], [4, 5, None], [0, 0, 0]],
+                [[6, 10, None]],
+                [[9, 7, None], [1, 3, None], [0, 0, 0]]]
+
+        for j, el in enumerate(inst.solution):
+            assert el == expected_after_destruction[j]
+    
+    def test_get_tour_end_position(self):
+        inst = self.instance
+        self.assertEqual(inst.get_tour_end_position(inst.solution[1]), 1)
+        self.assertEqual(inst.get_tour_end_position(inst.solution[2]), 0)
+        self.assertEqual(inst.get_tour_end_position(inst.solution[4]), 0)
+        self.assertEqual(inst.get_tour_end_position(inst.solution[7]), 0)
+        
+
+    def test_get_schedule_for_backw_ins(self):
+        inst = self.instance
+        #print("\n\n")
+        #print(f"TIME WINDOWS:")
+        #for j, el in enumerate(inst.time_window):
+        #    print(j, el)
+        #print(f"DISTANCES:")
+        #for j, el in enumerate(inst.distances):
+        #    print(j, el)
+        #print(f"inst.speed_f = {inst.speed_f} | service_time = {inst.service_time}")
+        #print(f"tour: {inst.solution[4]}")
+        sched = inst.get_schedule_for_backw_ins(inst.solution[4])
+
+        expected_sched = [[7027, 7127], [8187, 8287], [10000, 10000]]
+        for exp, comp in zip(expected_sched, sched):
+            self.assertEqual(exp, comp)
+
+        #print(f"tour: {inst.solution[7]}")
+        expected_sched = [[2779, 2879], [4334, 4434], [10000, 10000]]
+        sched = inst.get_schedule_for_backw_ins(inst.solution[7])
+        for exp, comp in zip(expected_sched, sched):
+            self.assertEqual(exp, comp)
+
+        self.instance = read_instance_vrp('./test/test_instance.vrp')
+        inst = self.instance
+        inst.create_initial_solution()
+        inst.destroy([1])  # remove customer 5 (pick any valid customer index)
+        inst.solution[-2] = inst.solution[-2][1:]
+        #print("\n")
+        #for el in inst.solution:
+        #    print(el)
+
+        #print(f"tour: {inst.solution[-2]}")
+        expected_sched = [[1635, 1735], [2779, 2879]]
+        sched = inst.get_schedule_for_backw_ins(inst.solution[-2])
+        for exp, comp in zip(expected_sched, sched):
+            self.assertEqual(exp, comp)
+
+
 if __name__ == '__main__':
     unittest.main()
 
