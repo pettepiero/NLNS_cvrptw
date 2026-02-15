@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import logging
 from copy import deepcopy
+import math
 
 def get_distances_matrix(locations):
     n = len(locations)
@@ -251,7 +252,7 @@ class VRPInstance():
         removed_customer_idx = []
 
         if print_debug:
-            print(f"\n\t\t In destroy: customers_to_remove: {customers_to_remove}")
+            print(f"\n\t\t In destroy: customers_to_remove_idx: {customers_to_remove_idx}")
         for tour_idx, tour in enumerate(self.solution):
             assert len(self.schedule) == len(self.solution)
             last_split_idx = 0
@@ -278,7 +279,10 @@ class VRPInstance():
                         st.append(new_tour)
                         #time = int(max(0, self.time_window[customer_idx][0] - self.speed_f*self.distances[0][customer_idx]))
                         #sc.append([[time, time + self.service_time]]) 
-                        sc.append([self.time_window[customer_idx].tolist()])
+                        #sc.append([self.time_window[customer_idx].tolist()])
+                        dist_from_depot = float(math.sqrt((self.locations[0][0] - self.locations[customer_idx][0])**2 + (self.locations[0][1] - self.locations[customer_idx][1])**2))
+                        time_from_depot = float(self.speed_f*dist_from_depot)
+                        sc.append([[max(time_from_depot, self.time_window[customer_idx][0].item()), min(self.max_time - time_from_depot, float(self.time_window[customer_idx][1].item()))]]) 
                         self.incomplete_tours.append(new_tour)
                         schedule = self.compute_tour_schedule(new_tour)
                         self.incomplete_schedules.append(schedule)
@@ -296,12 +300,20 @@ class VRPInstance():
                     self.incomplete_schedules.append(schedule)
             else:  # add unchanged tour
                 st.append(tour)
-                sc.append(self.schedule[tour_idx])
+                #sc.append(self.schedule[tour_idx])
+                sc.append(self.compute_tour_schedule(tour))
 
         self.solution = st
         self.schedule = sc
 
         self._check_sol_sched_alignment()
+        if print_debug:
+            print(f"DEBUG: after destruction - solution:")
+            for j, el in enumerate(self.solution):
+                print(j, el)
+            print(f"DEBUG: after destruction - schedule:")
+            for j, el in enumerate(self.schedule):
+                print(j, el)
 
 
     def get_tour_end_position(self, tour):
@@ -358,7 +370,7 @@ class VRPInstance():
                     f"{start_service=} > {tw_end=}"
                 )
     
-            schedule.append([start_service, start_service + st])
+            schedule.append([float(start_service), float(start_service + st)])
     
             # Update for next iteration (move forward)
             current_time = start_service + st
@@ -416,7 +428,7 @@ class VRPInstance():
                     f"{start_service=} < {tw_start=}"
                 )
     
-            schedule.append([start_service, start_service + st])
+            schedule.append([float(start_service), float(start_service + st)])
     
             # Update for next iteration (move backward)
             current_time = start_service
@@ -474,7 +486,7 @@ class VRPInstance():
                 raise ValueError 
 
             end = start + service_time
-            schedule.append([start, end])
+            schedule.append([float(start), float(end)])
             arrival = end + travel_time
             if print_debug:
                 print(f"DEBUG: end = {end} | arrival = {arrival}")
@@ -504,11 +516,11 @@ class VRPInstance():
         last_cust = tour[-1][0]
         tw_open, tw_close = self.time_window[last_cust]
         travel_time = self.speed_f * self.distances[current_cust][last_cust]
-        start = max(arrival, tw_open)
+        start = float(max(arrival, tw_open))
         if last_cust == 0:
             end = start 
         else:
-            end = start + self.service_time
+            end = start + float(self.service_time)
         schedule.append([start, end]) 
 
         assert len(tour) == len(schedule)
@@ -520,15 +532,15 @@ class VRPInstance():
             print(f"\nDEBUG: in compute_tour_schedule: tour: {tour}")
         if len(tour) == 1:
             cust = tour[0][0]
-            dist_from_depot = np.sqrt((self.locations[0][0] - self.locations[cust][0])**2 + (self.locations[0][1] - self.locations[cust][1])**2) 
-            time_from_depot = self.speed_f*dist_from_depot
+            dist_from_depot = float(math.sqrt((self.locations[0][0] - self.locations[cust][0])**2 + (self.locations[0][1] - self.locations[cust][1])**2))
+            time_from_depot = float(self.speed_f*dist_from_depot)
             if print_debug:
                 print(f"\nDEBUG: in compute_tour_schedule: tour: {tour}")
                 print(f"cust: {cust} | dist_from_depot: {dist_from_depot} | time_from_depot: {time_from_depot} ")
                 print(f"cust location: {self.locations[cust]} | depot location: {self.locations[0]}")
                 print(f"self.time_window[cust]: {self.time_window[cust]}")
             assert time_from_depot < self.time_window[cust][1]
-            schedule = [[max(time_from_depot, self.time_window[cust][0]), self.time_window[cust][1]]]
+            schedule = [[float(max(time_from_depot, float(self.time_window[cust][0]))), float(self.time_window[cust][1])]]
             if print_debug:
                 print(f"Set schedule to: {schedule}")
             assert len(tour) == len(schedule)
@@ -665,10 +677,11 @@ class VRPInstance():
         random_point = rng.random((1, 2))
         dist = np.sum((self.locations[1:] - random_point) ** 2, axis=1)
         closest_customers_idx = np.argsort(dist)[:nb_customers_to_remove] + 1
-        self.destroy(closest_customers_idx)
+        self.destroy(closest_customers_idx, True) #print_debug
 
     def destroy_tour_based(self, p, rng):
         """Tour based destroy. Remove all tours closest to a randomly selected point from a solution."""
+        print_debug = True
         self._check_sol_sched_alignment()
         # Make a dictionary that maps customers to tours
         customer_to_tour = {}
@@ -711,7 +724,7 @@ class VRPInstance():
                 cust = e[0]
                 dist_from_depot = np.sqrt((self.locations[0][0] - self.locations[cust][0])**2 + (self.locations[0][1] - self.locations[cust][1])**2) 
                 time_from_depot = self.speed_f*dist_from_depot
-                new_schedules.append([[max(time_from_depot, self.time_window[e[0]][0].item()), self.time_window[e[0]][1].item()]]) 
+                new_schedules.append([[max(time_from_depot, self.time_window[e[0]][0].item()), min(self.max_time - time_from_depot, self.time_window[e[0]][1].item())]]) 
                 removed_customer_idx.append(e[0])
 
         # Remove the tours that are marked for removal from the solution
@@ -724,6 +737,13 @@ class VRPInstance():
         self.incomplete_tours = new_tours
         self.incomplete_schedules = [self.compute_tour_schedule(tour) for tour in self.incomplete_tours]
         self._check_sol_sched_alignment()
+        if print_debug:
+            print(f"DEBUG: after destruction - solution:")
+            for j, el in enumerate(self.solution):
+                print(j, el)
+            print(f"DEBUG: after destruction - schedule:")
+            for j, el in enumerate(self.schedule):
+                print(j, el)
         
     def _check_sol_sched_alignment(self):
         print_debug = False
@@ -1353,7 +1373,7 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
             cust = t[p][0]
             time_to_depot = instances[i].speed_f*instances[i].distances[0][cust]/instances[i].max_time 
 
-            if (time_channel[i][idx_from] == scaled_tw_open) or abs(time_channel[i][idx_from] - time_to_depot) < eps:
+            if ((time_channel[i][idx_from] - scaled_tw_open) < eps) or abs(time_channel[i][idx_from] - time_to_depot) < eps:
                 if print_debug:
                     print(f"DEBUG: testing forward insertion")
                 #then I can test for insertion after origin_idx
