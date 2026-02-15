@@ -213,25 +213,47 @@ models_dir = full_model_path.parent
 logging.debug(f"\n**********************************************\nCalling NLNS model to run on batch:\n")
 # execute NLNS batch eval
 
-cmd_nlns = [
-    "python3",                  "main.py",
-    "--mode",                   "eval_single",
-    "--model_path",             full_model_path,
-    "--instance_path",          path,
-    #"--lns_batch_size",         "1000",
-    "--lns_batch_size",         "10",
-    "--lns_timelimit",          str(args.nlns_max_time_per_instance),
-    "--device",                 str(args.device),
-    "--output_path",            output_path,
-    "--lns_t_max",              str(args.lns_t_max),
-    "--lns_t_min",              str(args.lns_t_min),
-    "--lns_reheating_nb",       str(args.lns_reheating_nb),
-    "--lns_Z_param",            str(args.lns_Z_param),
-    "--lns_nb_cpus",            str(args.lns_nb_cpus),
-    "--plot_sol",               str(args.plot_sol),
-    "--pointer_hidden_size",    str(args.pointer_hidden_size),
-    "--seed",                   str(args.seed),
-    ]
+
+if args.seed is not None:
+    cmd_nlns = [
+        "python3",                  "main.py",
+        "--mode",                   "eval_single",
+        "--model_path",             full_model_path,
+        "--instance_path",          path,
+        #"--lns_batch_size",         "1000",
+        "--lns_batch_size",         "10",
+        "--lns_timelimit",          str(args.nlns_max_time_per_instance),
+        "--device",                 str(args.device),
+        "--output_path",            output_path,
+        "--lns_t_max",              str(args.lns_t_max),
+        "--lns_t_min",              str(args.lns_t_min),
+        "--lns_reheating_nb",       str(args.lns_reheating_nb),
+        "--lns_Z_param",            str(args.lns_Z_param),
+        "--lns_nb_cpus",            str(args.lns_nb_cpus),
+        "--plot_sol",               str(args.plot_sol),
+        "--pointer_hidden_size",    str(args.pointer_hidden_size),
+        "--seed",                   str(args.seed),
+        ]
+else:
+    cmd_nlns = [
+        "python3",                  "main.py",
+        "--mode",                   "eval_single",
+        "--model_path",             full_model_path,
+        "--instance_path",          path,
+        #"--lns_batch_size",         "1000",
+        "--lns_batch_size",         "10",
+        "--lns_timelimit",          str(args.nlns_max_time_per_instance),
+        "--device",                 str(args.device),
+        "--output_path",            output_path,
+        "--lns_t_max",              str(args.lns_t_max),
+        "--lns_t_min",              str(args.lns_t_min),
+        "--lns_reheating_nb",       str(args.lns_reheating_nb),
+        "--lns_Z_param",            str(args.lns_Z_param),
+        "--lns_nb_cpus",            str(args.lns_nb_cpus),
+        "--plot_sol",               str(args.plot_sol),
+        "--pointer_hidden_size",    str(args.pointer_hidden_size),
+        ]
+
 
 logging.debug(f"NLNS command: {cmd_nlns}")
 

@@ -540,7 +540,7 @@ class VRPInstance():
                 print(f"cust location: {self.locations[cust]} | depot location: {self.locations[0]}")
                 print(f"self.time_window[cust]: {self.time_window[cust]}")
             assert time_from_depot < self.time_window[cust][1]
-            schedule = [[float(max(time_from_depot, float(self.time_window[cust][0]))), float(self.time_window[cust][1])]]
+            schedule = [[float(max(time_from_depot, float(self.time_window[cust][0]))), float(min(self.max_time - time_from_depot, float(self.time_window[cust][1])))]]
             if print_debug:
                 print(f"Set schedule to: {schedule}")
             assert len(tour) == len(schedule)
