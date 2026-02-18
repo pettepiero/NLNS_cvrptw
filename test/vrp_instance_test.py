@@ -87,6 +87,17 @@ class test_get_last_dim(unittest.TestCase):
         inst = self.instance
         inst.create_initial_solution()
 
+        known_init_sol = [
+            [[0, 0, 0]],
+            [[0, 0, 0], [2, 2, None], [3, 8, None], [0, 0, 0]],
+            [[0, 0, 0], [5, 6, None], [10, 4, None], [7, 4, None], [0, 0, 0]],
+            [[0, 0, 0], [8, 8, None], [4, 5, None], [0, 0, 0]],
+            [[0, 0, 0], [6, 10, None], [9, 7, None], [1, 3, None], [0, 0, 0]]
+            ]
+        for kn, sol in zip(known_init_sol, inst.solution):
+            assert kn == sol
+        del known_init_sol
+
         # Make the instance "incomplete" so get_network_input() builds nn_input_idx_to_tour
         print(f"Initial solution:")
         for el in inst.solution:
@@ -127,7 +138,7 @@ class test_get_last_dim(unittest.TestCase):
         print(f"Using origin_idx: {origin_idx}")
 
         # Call the function under test
-        out = inst.get_last_dim(static_input, origin_idx)
+        out = inst.get_last_dim(static_input, origin_idx, print_debug=True)
 
         # --- Assertions ---
 
@@ -146,14 +157,161 @@ class test_get_last_dim(unittest.TestCase):
         # 3) expected_times override at origin_idx with scaled current_time
         tours = [el[0] for el in inst.nn_input_idx_to_tour]
         pos_in_tours = [el[1] for el in inst.nn_input_idx_to_tour]
-        indices = list(map(inst.solution.index, tours))
+        print(f"DEBUG: tours:")
+        for j, el in enumerate(tours):
+            print(j, el)
+        print(f"DEBUG: solution:")
+        for j, el in enumerate(inst.solution):
+            print(j, el)
+        print(f"DEBUG: schedule:")
+        for j, el in enumerate(inst.schedule):
+            print(j, el)
+
+        #indices = list(map(inst.solution.index, tours))
+        indices = list(map(inst.get_idx_in_solution, tours, pos_in_tours))
+
         schedules = [inst.schedule[ind] for ind in indices]
         expected_times = []
-        for j in range(len(indices)):
-            if pos_in_tours[j] == 0:
-                expected_times.append(schedules[j][pos_in_tours[j]][0])
+        for idx, el in enumerate(zip(tours, range(len(indices)))):
+            tour, j = el
+            print(f"DEBUG: doing tour: {tour}")
+            if len(tour) == 1:
+                if idx == 0:
+                    expected_times.append(schedules[j][pos_in_tours[j]][1]/inst.max_time)
+                else:
+                    if tours[idx -1][0][0] == tour[0][0]:
+                        print(f"DEBUG: second time with customer {tour[0][0]}")
+                        expected_times.append(schedules[j][pos_in_tours[j]][0]/inst.max_time)
+                    else:
+                        print(f"DEBUG: first time with customer {tour[0][0]}")
+                        expected_times.append(schedules[j][pos_in_tours[j]][1]/inst.max_time)
+            elif pos_in_tours[j] == 0:
+                expected_times.append(schedules[j][pos_in_tours[j]][0]/inst.max_time)
             else:
-                expected_times[j].append(schedules[j][pos_in_tours[j]][1])
+                expected_times[j].append(schedules[j][pos_in_tours[j]][1]/inst.max_time)
+        expected_times = torch.tensor(expected_times, dtype=expected_dists.dtype, device=expected_dists.device)
+        print(f"DEBUG: expected_times: {expected_times}")
+        print(f"DEBUG: expected_dists: {expected_dists}")
+
+        expected = torch.stack((expected_dists, expected_times), dim=1)
+        print(f"DEBUG: expected: {expected}")
+        print(f"out_1d: {out_1d}")
+
+        # 4) compare
+        self.assertTrue(torch.allclose(out_1d, expected, atol=1e-6))
+
+
+class test_get_last_dim2(unittest.TestCase):
+    def setUp(self):
+        self.instance = read_instance_vrp('./test/test_instance.vrp')
+
+    def test_get_last_dim_values(self):
+        inst = self.instance
+        inst.create_initial_solution()
+
+        known_init_sol = [
+            [[0, 0, 0]],
+            [[0, 0, 0], [2, 2, None], [3, 8, None], [0, 0, 0]],
+            [[0, 0, 0], [5, 6, None], [10, 4, None], [7, 4, None], [0, 0, 0]],
+            [[0, 0, 0], [8, 8, None], [4, 5, None], [0, 0, 0]],
+            [[0, 0, 0], [6, 10, None], [9, 7, None], [1, 3, None], [0, 0, 0]]
+            ]
+        for kn, sol in zip(known_init_sol, inst.solution):
+            assert kn == sol
+        del known_init_sol
+
+        # Make the instance "incomplete" so get_network_input() builds nn_input_idx_to_tour
+        print(f"Initial solution:")
+        for el in inst.solution:
+            print(el)
+
+        print(f"\n removing customer 8, which has coordinates: {inst.locations[8]}")
+        print(f"\n removing customer 3, which has coordinates: {inst.locations[3]}")
+        # and open_nn_input_idx, which get_last_dim relies on.
+        inst.destroy([8, 3])  # remove customers 8 and 3
+        print(f"After destruction:")
+        for el in inst.solution:
+            print(el)
+        print(f"Incomplete tours:")
+        for el in inst.incomplete_tours:
+            print(el)
+        # Build the NN static input exactly the way repair does it
+        input_size = inst.get_max_nb_input_points()
+        static_np, _dynamic_np = inst.get_network_input(input_size)
+        print(f"Equivalent nn_input_idx_to_tour:")
+        for el in inst.nn_input_idx_to_tour:
+            print(el)
+
+        print(f"inst.locations | time_window:")
+        for j, el in enumerate(zip(inst.locations, inst.time_window)):
+            print(j, el)
+
+        static_input = torch.tensor(static_np, dtype=torch.float32)
+        print(f"Got static_input:")
+        print(static_input)
+
+        print(f"inst.demand:")
+        for j, el in enumerate(inst.demand):
+            print(j, el)
+        print(f"Got _dynamic_np:")
+        print(_dynamic_np)
+        # Choose a valid origin idx (non-depot) that definitely exists
+        origin_idx = inst.open_nn_input_idx[1]
+        print(f"inst.open_nn_input_idx: {inst.open_nn_input_idx}")
+        print(f"Using origin_idx: {origin_idx}")
+
+        # Call the function under test
+        out = inst.get_last_dim(static_input, origin_idx, print_debug=True)
+
+        # --- Assertions ---
+
+        # 1) shape: (N, 1)
+        self.assertEqual(out.ndim, 2)
+        self.assertEqual(out.shape[0], static_input.shape[0])
+        self.assertEqual(out.shape[1], 2)
+
+        out_1d = out.squeeze(-1)
+
+        # 2) expected_dists distances from origin to all points in coords space
+        coords = static_input[:, :2]
+        origin_xy = coords[origin_idx]
+        expected_dists = torch.sqrt(((coords - origin_xy) ** 2).sum(dim=-1))
+
+        # 3) expected_times override at origin_idx with scaled current_time
+        tours = [el[0] for el in inst.nn_input_idx_to_tour]
+        pos_in_tours = [el[1] for el in inst.nn_input_idx_to_tour]
+        print(f"DEBUG: tours:")
+        for j, el in enumerate(tours):
+            print(j, el)
+        print(f"DEBUG: solution:")
+        for j, el in enumerate(inst.solution):
+            print(j, el)
+        print(f"DEBUG: schedule:")
+        for j, el in enumerate(inst.schedule):
+            print(j, el)
+
+        #indices = list(map(inst.solution.index, tours))
+        indices = list(map(inst.get_idx_in_solution, tours, pos_in_tours))
+
+        schedules = [inst.schedule[ind] for ind in indices]
+        expected_times = []
+        for idx, el in enumerate(zip(tours, range(len(indices)))):
+            tour, j = el
+            print(f"DEBUG: doing tour: {tour}")
+            if len(tour) == 1:
+                if idx == 0:
+                    expected_times.append(schedules[j][pos_in_tours[j]][1]/inst.max_time)
+                else:
+                    if tours[idx -1][0][0] == tour[0][0]:
+                        print(f"DEBUG: second time with customer {tour[0][0]}")
+                        expected_times.append(schedules[j][pos_in_tours[j]][0]/inst.max_time)
+                    else:
+                        print(f"DEBUG: first time with customer {tour[0][0]}")
+                        expected_times.append(schedules[j][pos_in_tours[j]][1]/inst.max_time)
+            elif pos_in_tours[j] == 0:
+                expected_times.append(schedules[j][pos_in_tours[j]][0]/inst.max_time)
+            else:
+                expected_times.append(schedules[j][pos_in_tours[j]][1]/inst.max_time)
         expected_times = torch.tensor(expected_times, dtype=expected_dists.dtype, device=expected_dists.device)
         print(f"DEBUG: expected_times: {expected_times}")
         print(f"DEBUG: expected_dists: {expected_dists}")

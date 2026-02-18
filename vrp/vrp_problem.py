@@ -244,6 +244,8 @@ class VRPInstance():
 
     def destroy(self, customers_to_remove_idx, print_debug=False):
         """Remove the customers with the given idx from their tours. This creates an incomplete solution."""
+        print_debug = True
+        self._check_sol_sched_alignment()
         self.incomplete_tours = []
         self.incomplete_schedules = []
         st = []  # solution tours
@@ -252,7 +254,7 @@ class VRPInstance():
         removed_customer_idx = []
 
         if print_debug:
-            print(f"\n\t\t In destroy: customers_to_remove_idx: {customers_to_remove_idx}")
+            print(f"\n\t\t in destroy: customers_to_remove_idx: {customers_to_remove_idx}")
         for tour_idx, tour in enumerate(self.solution):
             assert len(self.schedule) == len(self.solution)
             last_split_idx = 0
@@ -353,7 +355,7 @@ class VRPInstance():
             start_service = max(current_time + travel_time, tw_start)
     
             if start_service > tw_end:
-                print(f"DEBUG: failes in get_schedule_for_back_ins: ")
+                print(f"DEBUG: failed in get_schedule_for_forw_ins: ")
                 print(f"tour: {tour}")
                 print(f"self.speed_f = {self.speed_f}")
                 print(f"time_window")
@@ -682,6 +684,8 @@ class VRPInstance():
     def destroy_tour_based(self, p, rng):
         """Tour based destroy. Remove all tours closest to a randomly selected point from a solution."""
         print_debug = True
+        if print_debug:
+            print(f"\n in destroy_tour_based")
         self._check_sol_sched_alignment()
         # Make a dictionary that maps customers to tours
         customer_to_tour = {}
@@ -1147,107 +1151,272 @@ class VRPInstance():
 
         return new_instance
 
+    #def get_last_dim(self, static_input, origin_idx, print_debug=False):
+    #    # (N, 2) coords in NN-input space
+    #    if print_debug:
+    #        print(f"\nDEBUG: in get_last_dim: (origin_idx = {origin_idx})")
+    #    coords      = static_input[:, :2]
+    #    origin_xy   = coords[origin_idx]  # (2,)
+    #    distances   = torch.sqrt(((coords - origin_xy) ** 2).sum(dim=-1))  # (N,)
+    #    current_times = torch.full_like(distances, self.max_time, dtype=distances.dtype, device=distances.device)
+    #    #number of not-None elements in self.nn_input_idx_to_tour
+    #    n = sum(el is not None for el in self.nn_input_idx_to_tour)
+    #    #n = len(self.open_nn_input_idx)
+    #    prev_t = [[0, 0, None]] 
+    #    current_pos = self.nn_input_idx_to_tour[origin_idx][1]
+    #    current_tour = self.nn_input_idx_to_tour[origin_idx][0]
+    #    #for j in range(n):
+    #    if print_debug:
+    #        print(f"\tDEBUG: solution")
+    #        for j, el in enumerate(self.solution):
+    #            print('\t', j, el)
+    #        print(f"\tDEBUG: schedule")
+    #        for j, el in enumerate(self.schedule):
+    #            print('\t', j, el)
+    #        print(f"\tDEBUG: time_window")
+    #        for j, el in enumerate(self.time_window):
+    #            print('\t', j, el)
+    #        print('\n')
+    #        print(f"\tDEBUG: self.nn_input_idx_to_tour:")
+    #        for j, el in enumerate(self.nn_input_idx_to_tour):
+    #            if j in self.open_nn_input_idx:
+    #                print('\t  ', j, el)
+    #            else:
+    #                print('\tX ', j, el)
+
+    #    for j in self.open_nn_input_idx:
+    #        t, pos = self.nn_input_idx_to_tour[j]
+    #        idx = self.get_idx_in_solution(t, pos)
+    #        if print_debug:
+    #            if j == origin_idx:
+    #                print(f"\n\t -> Doing index {j} | {t} | {pos}")
+    #                print(f"\t    index in solution: {idx}")
+    #                print(f"\t    schedule: {self.schedule[idx]}")
+    #                print(f"\t    prev_t: {prev_t}")
+    #            else:
+    #                print(f"\t    Doing index {j} | {t} | {pos}")
+    #                print(f"\t    index in solution: {idx}")
+    #                print(f"\t    schedule: {self.schedule[idx]}")
+    #                print(f"\t    prev_t: {prev_t}")
+
+    #        if is_same_tour_next_end(prev_t, t): # then len(t) = 0
+    #            if current_times[j-1] == self.schedule[idx][pos][0]:
+    #                current_times[j] = self.schedule[idx][pos][1]
+    #            else:
+    #                current_times[j] = self.schedule[idx][pos][0]
+
+    #            if print_debug:
+    #                print(f"\tDEBUG: index {j} is first case")
+    #                print(f"\tDEBUG: set current_times[{j}] = {current_times[j]}")
+    #        else:
+    #            if print_debug:
+    #                print(f"\tDEBUG: index {j} is second case")
+    #            if len(current_tour) > 1:
+    #                if current_pos == 0: 
+    #                    current_times[j] = self.schedule[idx][pos][1]
+    #                    if print_debug:
+    #                        print(f"\tDEBUG: self.solution:")
+    #                        for k, el in enumerate(self.solution):
+    #                            print('\t', k, el)
+    #                        print(f"\tDEBUG: self.schedule:")
+    #                        for k, el in enumerate(self.schedule):
+    #                            print('\t', k, el)
+    #                        print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][0]: {current_times[j]}")
+    #                else:
+    #                    current_times[j] = self.schedule[idx][pos][1]
+    #                    if print_debug:
+    #                        print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][1]: {current_times[j]}")
+    #            elif len(current_tour) == 1:
+
+
+    #        prev_t = t
+
+    #    if print_debug:
+    #        print(f"\tDEBUG: current_times before scaling:")
+    #        for j, el in enumerate(current_times):
+    #            if j != origin_idx:
+    #                print('\t  ', j, el)
+    #            else:
+    #                print('\t->', j ,el)
+    #    
+    #    #scale down current_time to 0,1
+    #    current_time_norm = current_times / self.max_time 
+
+    #    if print_debug:
+    #        print(f"\tDEBUG: current_time_norm:")
+    #        for j, el in enumerate(current_time_norm):
+    #            if j != origin_idx:
+    #                print('\t  ', j, el)
+    #            else:
+    #                print('\t->', j ,el)
+    #    #time_channel = current_times
+    #    
+    #    return torch.stack([distances, current_time_norm], dim=-1)
+
+    #def get_last_dim(self, static_input, origin_idx, print_debug=False):
+    #    # (N, 2) coords in NN-input space
+    #    if print_debug:
+    #        print(f"\nDEBUG: in get_last_dim: (origin_idx = {origin_idx})")
+    #    coords      = static_input[:, :2]
+    #    origin_xy   = coords[origin_idx]  # (2,)
+    #    distances   = torch.sqrt(((coords - origin_xy) ** 2).sum(dim=-1))  # (N,)
+    #    current_times = torch.full_like(distances, self.max_time, dtype=distances.dtype, device=distances.device)
+    #    #number of not-None elements in self.nn_input_idx_to_tour
+    #    n = sum(el is not None for el in self.nn_input_idx_to_tour)
+    #    #n = len(self.open_nn_input_idx)
+    #    prev_t = [[0, 0, None]] 
+    #    current_pos = self.nn_input_idx_to_tour[origin_idx][1]
+    #    current_tour = self.nn_input_idx_to_tour[origin_idx][0]
+    #    #for j in range(n):
+    #    if print_debug:
+    #        print(f"\tDEBUG: solution")
+    #        for j, el in enumerate(self.solution):
+    #            print('\t', j, el)
+    #        print(f"\tDEBUG: schedule")
+    #        for j, el in enumerate(self.schedule):
+    #            print('\t', j, el)
+    #        print(f"\tDEBUG: time_window")
+    #        for j, el in enumerate(self.time_window):
+    #            print('\t', j, el)
+    #        print('\n')
+    #        print(f"\tDEBUG: self.nn_input_idx_to_tour:")
+    #        for j, el in enumerate(self.nn_input_idx_to_tour):
+    #            if j in self.open_nn_input_idx:
+    #                print('\t  ', j, el)
+    #            else:
+    #                print('\tX ', j, el)
+    #    
+    #    #first to origin row
+    #    idx = self.get_idx_in_solution(current_tour, current_pos)
+    #    print(f"DEBUG: doing origin row")
+    #    print(f"DEBUG: current_tour: {current_tour} | len(current_tour) = {len(current_tour)}")
+    #    if len(current_tour) == 1:
+    #        if self.nn_input_idx_to_tour[origin_idx -1][0][0][0] == current_tour[0][0]:
+    #            # then append schedule[0]
+    #            current_times[idx] = self.schedule[idx][0][0]
+    #        else:
+    #            # then append schedule[1]
+    #            current_times[idx] = self.schedule[idx][0][1]
+    #        print(f"DEBUG: set current_times[{idx}] = {current_times[idx]}")
+
+    #    for j in self.open_nn_input_idx:
+    #        t, pos = self.nn_input_idx_to_tour[j]
+    #        idx = self.get_idx_in_solution(t, pos)
+    #        if print_debug:
+    #            if j == origin_idx:
+    #                print(f"\n\t -> Doing index {j} | {t} | {pos}")
+    #                print(f"\t    index in solution: {idx}")
+    #                print(f"\t    schedule: {self.schedule[idx]}")
+    #                print(f"\t    prev_t: {prev_t}")
+    #            else:
+    #                print(f"\n\t    Doing index {j} | {t} | {pos}")
+    #                print(f"\t    index in solution: {idx}")
+    #                print(f"\t    schedule: {self.schedule[idx]}")
+    #                print(f"\t    prev_t: {prev_t}")
+
+    #        if j == origin_idx:
+    #            continue
+    #        if is_same_tour_next_end(prev_t, t): # then len(t) = 0
+    #            if current_times[j-1] == self.schedule[idx][pos][0]:
+    #                current_times[j] = self.schedule[idx][pos][1]
+    #            else:
+    #                current_times[j] = self.schedule[idx][pos][0]
+
+    #            if print_debug:
+    #                print(f"\tDEBUG: index {j} is first case")
+    #                print(f"\tDEBUG: set current_times[{j}] = {current_times[j]}")
+    #        else:
+    #            if print_debug:
+    #                print(f"\tDEBUG: index {j} is second case")
+    #            if len(current_tour) > 1:
+    #                if current_pos == 0: 
+    #                    current_times[j] = self.schedule[idx][pos][1]
+    #                    if print_debug:
+    #                        print(f"\tDEBUG: self.solution:")
+    #                        for k, el in enumerate(self.solution):
+    #                            print('\t', k, el)
+    #                        print(f"\tDEBUG: self.schedule:")
+    #                        for k, el in enumerate(self.schedule):
+    #                            print('\t', k, el)
+    #                        print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][0]: {current_times[j]}")
+    #                else:
+    #                    current_times[j] = self.schedule[idx][pos][1]
+    #                    if print_debug:
+    #                        print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][1]: {current_times[j]}")
+    #            elif len(current_tour) == 1:
+    #                if pos == 0:
+    #                    current_times[j] = self.schedule[idx][pos][0]
+    #                else:
+    #                    current_times[j] = self.schedule[idx][pos][1]
+
+    #        prev_t = t
+
+    #    if print_debug:
+    #        print(f"\tDEBUG: current_times before scaling:")
+    #        for k, el in enumerate(current_times):
+    #            if k != origin_idx:
+    #                print('\t  ', k, el)
+    #            else:
+    #                print('\t->', k ,el)
+    #    
+    #    #scale down current_time to 0,1
+    #    current_time_norm = current_times / self.max_time 
+
+    #    if print_debug:
+    #        print(f"\tDEBUG: current_time_norm:")
+    #        for k, el in enumerate(current_time_norm):
+    #            if k != origin_idx:
+    #                print('\t  ', k, el)
+    #            else:
+    #                print('\t->', k ,el)
+    #    #time_channel = current_times
+    #    
+    #    return torch.stack([distances, current_time_norm], dim=-1)
     def get_last_dim(self, static_input, origin_idx, print_debug=False):
-        # (N, 2) coords in NN-input space
-        print_debug=False
-        #print_debug=False
-        if print_debug:
-            print(f"\nDEBUG: in get_last_dim: (origin_idx = {origin_idx})")
-        coords      = static_input[:, :2]
-        origin_xy   = coords[origin_idx]  # (2,)
-        distances   = torch.sqrt(((coords - origin_xy) ** 2).sum(dim=-1))  # (N,)
-        current_times = torch.full_like(distances, self.max_time, dtype=distances.dtype, device=distances.device)
-        #number of not-None elements in self.nn_input_idx_to_tour
-        n = sum(el is not None for el in self.nn_input_idx_to_tour)
-        #n = len(self.open_nn_input_idx)
-        prev_t = [[0, 0, None]] 
-        current_pos = self.nn_input_idx_to_tour[origin_idx][1]
-        #for j in range(n):
-        if print_debug:
-            print(f"\tDEBUG: solution")
-            for j, el in enumerate(self.solution):
-                print('\t', j, el)
-            print(f"\tDEBUG: schedule")
-            for j, el in enumerate(self.schedule):
-                print('\t', j, el)
-            print(f"\tDEBUG: time_window")
-            for j, el in enumerate(self.time_window):
-                print('\t', j, el)
-            print('\n')
-            print(f"\tDEBUG: self.nn_input_idx_to_tour:")
-            for j, el in enumerate(self.nn_input_idx_to_tour):
-                if j in self.open_nn_input_idx:
-                    print('\t  ', j, el)
-                else:
-                    print('\tX ', j, el)
+        coords = static_input[:, :2]
+        origin_xy = coords[origin_idx]
+        # Distance channel
+        distances = torch.sqrt(((coords - origin_xy) ** 2).sum(dim=-1))
+        N = static_input.shape[0]
+        current_times = torch.zeros(
+            N,
+            dtype=distances.dtype,
+            device=distances.device
+        )
+        tours = [el[0] for el in self.nn_input_idx_to_tour]
+        pos_in_tours = [el[1] for el in self.nn_input_idx_to_tour]
+        # Map each nn_input row to correct schedule row
+        solution_indices = list(
+            map(self.get_idx_in_solution, tours, pos_in_tours)
+        )
+        schedules = [self.schedule[idx] for idx in solution_indices]
+        seen_customers = {}
 
-        for j in self.open_nn_input_idx:
-            t, pos = self.nn_input_idx_to_tour[j]
-            idx = self.get_idx_in_solution(t, pos)
-            #print_debug = False
-            if print_debug:
-                if j == origin_idx:
-                    print(f"\n\t -> Doing index {j} | {t} | {pos}")
-                    print(f"\t    index in solution: {idx}")
-                    print(f"\t    schedule: {self.schedule[idx]}")
-                    print(f"\t    prev_t: {prev_t}")
+        for idx, (tour, pos) in enumerate(zip(tours, pos_in_tours)):
+            schedule = schedules[idx]
+            if len(tour) == 1:
+                customer = tour[0][0]
+                count = seen_customers.get(customer, 0)
+                if idx == 0:
+                    time_val = schedule[pos][1]
                 else:
-                    print(f"\t    Doing index {j} | {t} | {pos}")
-                    print(f"\t    index in solution: {idx}")
-                    print(f"\t    schedule: {self.schedule[idx]}")
-                    print(f"\t    prev_t: {prev_t}")
+                    if count == 0:
+                        time_val = schedule[pos][1]
+                    else:
+                        time_val = schedule[pos][0]
 
-
-            if (len(prev_t) == len(t)) and (prev_t[0][0] == t[0][0]) and (t[0][0] != 0):
-                if current_pos == 0:
-                    current_times[j] = self.schedule[idx][pos][0]
-                else:
-                    current_times[j] = self.schedule[idx][pos][1]
-                if print_debug:
-                    print(f"\tDEBUG: index {j} is first case")
-                    print(f"\tDEBUG: set current_times[{j}] = {current_times[j]}")
+                seen_customers[customer] = count + 1
             else:
-                if print_debug:
-                    print(f"\tDEBUG: index {j} is second case")
-                if current_pos == 0:
-                    current_times[j] = self.schedule[idx][pos][0]
-                    if print_debug:
-                        print(f"\tDEBUG: self.solution:")
-                        for k, el in enumerate(self.solution):
-                            print('\t', k, el)
-                        print(f"\tDEBUG: self.schedule:")
-                        for k, el in enumerate(self.schedule):
-                            print('\t', k, el)
-                        print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][0]: {current_times[j]}")
+                if pos == 0:
+                    time_val = schedule[pos][0]
                 else:
-                    current_times[j] = self.schedule[idx][pos][1]
-                    if print_debug:
-                        print(f"\tDEBUG: setting current_times[j] to self.schedule[{idx}][{pos}][1]: {current_times[j]}")
+                    time_val = schedule[pos][1]
 
-            prev_t = t
+            current_times[idx] = time_val
+        current_time_norm = current_times / self.max_time
 
-        if print_debug:
-            print(f"\tDEBUG: current_times before scaling:")
-            for j, el in enumerate(current_times):
-                if j != origin_idx:
-                    print('\t  ', j, el)
-                else:
-                    print('\t->', j ,el)
-        
-        #scale down current_time to 0,1
-        current_time_norm = current_times / self.max_time 
+        return torch.stack((distances, current_time_norm), dim=1)
 
-        if print_debug:
-            print(f"\tDEBUG: current_time_norm:")
-            for j, el in enumerate(current_time_norm):
-                if j != origin_idx:
-                    print('\t  ', j, el)
-                else:
-                    print('\t->', j ,el)
-        #time_channel = current_times
-        
-        return torch.stack([distances, current_time_norm], dim=-1)
-    
 
     def _check_alignment(self, where=""):
         if self.solution is None or self.schedule is None:
@@ -1541,6 +1710,11 @@ def reorder_tours(tour_from, tour_to, pos_from, pos_to):
 
     return tour_from, tour_to, pos_from, pos_to
 
+def is_same_tour_next_end(prev_t, t):
+    if len(t) == 1 and len(prev_t) == 1 and t[0][0] == prev_t[0][0] and t[0][0] != 0:
+        return True
+    else:
+        return False
 
 def get_logger_file_name():
     # 1. Look for a FileHandler in the current logger or its parents (root)
