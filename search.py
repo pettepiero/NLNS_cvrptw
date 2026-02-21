@@ -20,7 +20,6 @@ class LnsOperatorPair:
 
 def destroy_instances(rng, instances, destroy_procedure=None, destruction_p=None):
     for j, instance in enumerate(instances):
-        #print(f"DEBUG: destroying instance {j}")
         if destroy_procedure == "R":
             instance.destroy_random(destruction_p, rng=rng)
         elif destroy_procedure == "P":

@@ -9,7 +9,7 @@ import logging
 log = logging.getLogger(__name__)
 
 def _actor_model_forward(actor, instances, static_input, dynamic_input, config, vehicle_capacity, rng):
-    print_debug = False
+    print_debug = True 
     batch_size = static_input.shape[0]
     N = static_input.shape[1]
     tour_idx, tour_logp = [], []
@@ -27,7 +27,38 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
                     origin_idx[i] = np.random.choice(instance.open_nn_input_idx, 1).item()
                 else:
                     origin_idx[i] = rng.choice(instance.open_nn_input_idx, 1).item()
+            if i == 109:
+                print_debug=True
+            else:
+                print_debug=False
             last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i], print_debug=print_debug)
+            if i == 109:
+                print_debug=True
+                print(f"DEBUG: in _actor_model_forward(), instance i={i}")
+                print(f"solution:")
+                for j, el in enumerate(instance.solution):
+                    print(j, el)
+                print(f"schedule:")
+                for j, el in enumerate(instance.schedule):
+                    print(j, el)
+                print(f"nn_input_idx_to_tour:")
+                for j, el in enumerate(instance.nn_input_idx_to_tour):
+                    print(j, el)
+                print(f"locations:")
+                for j, el in enumerate(instance.locations):
+                    print(j, el)
+                print(f"static_input")
+                for j, el in enumerate(static_input[109]):
+                    if j in instance.open_nn_input_idx:
+                        print('->', j, el)
+                    else:
+                        print('  ', j, el)
+                print(static_input[109])
+                print(f"dynamic_input")
+                print(dynamic_input[109])
+                print(f"last_dim")
+                print(last_dim[109])
+
 
         # Rescale customer demand based on vehicle capacity
         dynamic_input_last_dim = torch.cat((dynamic_input, last_dim), dim=-1)
@@ -77,11 +108,22 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
         nn_input_updates = []
         ptr_np = ptr.cpu().numpy()
         for i, instance in enumerate(instances):
-            if print_debug:
-                print(f"DEBUG: doing instance {i}/{len(instances) -1}")
+            print_debug = False
             idx_from = origin_idx[i].item()
             idx_to = ptr_np[i]
+            if print_debug:
+                print(f"DEBUG: doing instance {i}/{len(instances) -1}")
+                print(f"DEBUG: instance {i} solution:")
+                for j, el in enumerate(instances[i].solution):
+                    print(j, el)
+                print(f"DEBUG: instance {i} schedule:")
+                for j, el in enumerate(instances[i].schedule):
+                    print(j, el)
+                print(f"DEBUG: idx_from: {idx_from}")
+                print(f"DEBUG: idx_to: {idx_to}")
             if invert_connection[i]:
+                if print_debug:
+                    print(f"DEBUG inverting connection {i} | this means mask was computed with idx_from = {idx_from} and idx_to = {idx_to}")
                 idx_from, idx_to = idx_to, idx_from
             #log.info(f"\t For instance {i}/{len(instances)} sampled: idx_from={idx_from}, idx_to={idx_to}")
             #log.info(f"\t It means tour_from: {instance.nn_input_idx_to_tour[idx_from][0]} | tour_to: {instance.nn_input_idx_to_tour[idx_to][0]}")
@@ -90,6 +132,8 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
             if idx_from == 0 and idx_to == 0:  # No need to update in this case
                 continue
             instance._check_sol_sched_alignment()
+            if print_debug:
+                print(f"DEBUG: calling do_action on instance {i} | idx_from: {idx_from} | idx_to: {idx_to}")
             nn_input_update, cur_nn_input_idx = instance.do_action(idx_from, idx_to, False)  # Connect origin to select point
             instance._check_sol_sched_alignment()
             for s in nn_input_update:
