@@ -101,10 +101,13 @@ class VRPInstance():
         tw = self.time_window
         speed_f = self.speed_f
         max_time = self.max_time
-        st = self.service_time
         assert len(tw) == dist_matrix.shape[0]
         effective_tw = []
         for i in range(len(tw)):
+            if i != 0:
+                st = self.service_time
+            else:
+                st = 0
             dtd = dist_matrix[0][i] #dist to depot
             ttd = speed_f*dtd
             effective_tw.append(
@@ -362,6 +365,7 @@ class VRPInstance():
     
         customers = [el[0] for el in tour]
         time_windows = [self.time_window[c] for c in customers]
+        eff_time_windows = [self.effective_tw[c] for c in customers]
     
         max_time = int(self.max_time)
         service_time = int(self.service_time)
@@ -374,8 +378,10 @@ class VRPInstance():
     
         for i in range(len(customers)):
             cust = customers[i]
-            tw_start = int(time_windows[i][0])
-            tw_end   = int(time_windows[i][1])
+            #tw_start = int(time_windows[i][0])
+            #tw_end   = int(time_windows[i][1])
+            tw_start = int(eff_time_windows[i][0])
+            tw_end   = int(eff_time_windows[i][1])
 
             # Service time (depot has zero service time)
             st = 0 if cust == 0 else service_time
@@ -389,6 +395,9 @@ class VRPInstance():
                 print(f"self.speed_f = {self.speed_f}")
                 print(f"time_window")
                 for j, el in enumerate(self.time_window):
+                    print(j, el)
+                print(f"effective_tw")
+                for j, el in enumerate(self.effective_tw):
                     print(j, el)
                 print(f"distances")
                 for j, el in enumerate(self.distances):
@@ -421,6 +430,7 @@ class VRPInstance():
     
         customers = [el[0] for el in reversed(tour)]
         time_windows = [self.time_window[c] for c in customers]
+        eff_time_windows = [self.effective_tw[c] for c in customers]
         max_time = int(self.max_time)
         service_time = int(self.service_time)
     
@@ -435,13 +445,16 @@ class VRPInstance():
             print(f"\t\tDEBUG: tour: {tour}")
             print(f"\t\tDEBUG: customers: {customers}")
             print(f"\t\tDEBUG: time_windows: {time_windows}")
+            print(f"\t\tDEBUG: effective_tws: {effective_tws}")
             print(f"\t\tDEBUG: current_time: {current_time}")
             print(f"\t\tDEBUG: travel_time from depot to first cust: {travel_time}")
     
         for i in range(len(customers)):
             cust = customers[i]
-            tw_start = int(time_windows[i][0])
-            tw_end   = int(time_windows[i][1])
+            #tw_start = int(time_windows[i][0])
+            #tw_end   = int(time_windows[i][1])
+            tw_start = int(eff_time_windows[i][0])
+            tw_end   = int(eff_time_windows[i][1])
 
             # Service time (depot has zero service time)
             st = 0 if cust == 0 else service_time
