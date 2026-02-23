@@ -9,7 +9,7 @@ import logging
 log = logging.getLogger(__name__)
 
 def _actor_model_forward(actor, instances, static_input, dynamic_input, config, vehicle_capacity, rng):
-    print_debug = True 
+    print_debug = False 
     batch_size = static_input.shape[0]
     N = static_input.shape[1]
     tour_idx, tour_logp = [], []
@@ -27,37 +27,7 @@ def _actor_model_forward(actor, instances, static_input, dynamic_input, config, 
                     origin_idx[i] = np.random.choice(instance.open_nn_input_idx, 1).item()
                 else:
                     origin_idx[i] = rng.choice(instance.open_nn_input_idx, 1).item()
-            if i == 109:
-                print_debug=True
-            else:
-                print_debug=False
-            last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i], print_debug=print_debug)
-            if i == 109:
-                print_debug=True
-                print(f"DEBUG: in _actor_model_forward(), instance i={i}")
-                print(f"solution:")
-                for j, el in enumerate(instance.solution):
-                    print(j, el)
-                print(f"schedule:")
-                for j, el in enumerate(instance.schedule):
-                    print(j, el)
-                print(f"nn_input_idx_to_tour:")
-                for j, el in enumerate(instance.nn_input_idx_to_tour):
-                    print(j, el)
-                print(f"locations:")
-                for j, el in enumerate(instance.locations):
-                    print(j, el)
-                print(f"static_input")
-                for j, el in enumerate(static_input[109]):
-                    if j in instance.open_nn_input_idx:
-                        print('->', j, el)
-                    else:
-                        print('  ', j, el)
-                print(static_input[109])
-                print(f"dynamic_input")
-                print(dynamic_input[109])
-                print(f"last_dim")
-                print(last_dim[109])
+            last_dim[i] = instance.get_last_dim(static_input[i], origin_idx[i], print_debug=False)
 
 
         # Rescale customer demand based on vehicle capacity

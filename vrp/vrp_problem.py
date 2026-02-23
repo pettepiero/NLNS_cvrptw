@@ -380,8 +380,8 @@ class VRPInstance():
             cust = customers[i]
             #tw_start = int(time_windows[i][0])
             #tw_end   = int(time_windows[i][1])
-            tw_start = int(eff_time_windows[i][0])
-            tw_end   = int(eff_time_windows[i][1])
+            tw_start = eff_time_windows[i][0]
+            tw_end   = eff_time_windows[i][1]
 
             # Service time (depot has zero service time)
             st = 0 if cust == 0 else service_time
@@ -407,6 +407,7 @@ class VRPInstance():
                     f"{tour=}\n"
                     f"{schedule=}\n"
                     f"{self.time_window=}\n"
+                    f"{self.effective_tw=}\n"
                     f"{start_service=} > {tw_end=}"
                 )
     
@@ -453,8 +454,8 @@ class VRPInstance():
             cust = customers[i]
             #tw_start = int(time_windows[i][0])
             #tw_end   = int(time_windows[i][1])
-            tw_start = int(eff_time_windows[i][0])
-            tw_end   = int(eff_time_windows[i][1])
+            tw_start = eff_time_windows[i][0]
+            tw_end   = eff_time_windows[i][1]
 
             # Service time (depot has zero service time)
             st = 0 if cust == 0 else service_time
@@ -470,7 +471,7 @@ class VRPInstance():
                 print(f"\t\tDEBUG: travel_time: {travel_time}")
                 print(f"\t\tDEBUG: current_time: {current_time}")
     
-            if start_service <= tw_start:
+            if start_service < tw_start:
                 print(f"DEBUG: failes in get_schedule_for_back_ins: ")
                 print(f"tour: {tour}")
                 print(f"self.speed_f = {self.speed_f}")
@@ -488,6 +489,7 @@ class VRPInstance():
                     f"{tour=}\n"
                     f"schedule={list(reversed(schedule))}\n"
                     f"{self.time_window=}\n"
+                    f"{self.effective_tw=}\n"
                     f"{start_service=} < {tw_start=}"
                 )
     
@@ -1614,6 +1616,9 @@ def get_mask(origin_nn_input_idx, static_input, dynamic_input, instances, config
                     print('->', j, el)
             print(f"DEBUG: time_windows:")
             for j, el in enumerate(instances[i].time_window):
+                print(j, el)
+            print(f"DEBUG: effective_tw:")
+            for j, el in enumerate(instances[i].effective_tw):
                 print(j, el)
             print(f"DEBUG: locationss:")
             for j, el in enumerate(instances[i].locations):
