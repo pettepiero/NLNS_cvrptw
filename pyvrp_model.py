@@ -36,7 +36,13 @@ def run_pyvrp_on_instance(inst: VRPInstance, only_cost: bool = False, display: b
     log.info(f'In run_pyvrp_on_instance | num_depots: {num_depots}')
     depots = []
     for d in inst['depot']:
-        depot = m.add_depot(x=inst['node_coord'][d][0], y=inst['node_coord'][d][1])
+        depot = m.add_depot(
+            x                   = inst['node_coord'][d][0], 
+            y                   = inst['node_coord'][d][1],
+            tw_early            = int(inst['time_window'][d][0]),
+            tw_late             = int(inst['time_window'][d][1]),
+            service_duration    = 0,
+            )
         depots.append(depot)
     log.info(f'In run_pyvrp_on_instance | depots: {depots}')
     
@@ -62,9 +68,12 @@ def run_pyvrp_on_instance(inst: VRPInstance, only_cost: bool = False, display: b
     
     clients = [
         m.add_client(
-            x=int(inst['node_coord'][idx][0]),
-            y=int(inst['node_coord'][idx][1]),
-            delivery=int(inst['demand'][idx]),
+            x                   = int(inst['node_coord'][idx][0]),
+            y                   = int(inst['node_coord'][idx][1]),
+            tw_early            = int(inst['time_window'][idx][0]),
+            tw_late             = int(inst['time_window'][idx][1]),
+            service_duration    = int(inst['service_time']),
+            delivery            = int(inst['demand'][idx]),
         )
         for idx in range(num_depots, len(inst['node_coord']))
     ]
@@ -74,8 +83,11 @@ def run_pyvrp_on_instance(inst: VRPInstance, only_cost: bool = False, display: b
     for frm_idx, frm in enumerate(locations):
         for to_idx, to in enumerate(locations):
             #distance = abs(frm.x - to.x) + abs(frm.y - to.y)  # Manhattan
-            distance = np.sqrt((frm.x - to.x)**2 + (frm.y - to.y)**2) 
-            m.add_edge(frm, to, distance=distance)
+            #distance = np.sqrt((frm.x - to.x)**2 + (frm.y - to.y)**2) 
+            distance = inst['edge_weight'][frm_idx][to_idx]
+            duration = distance
+            #m.add_edge(frm, to, distance=distance)
+            m.add_edge(frm, to, distance=duration, duration=duration) #is distance=duration right?
     
     result = m.solve(stop=MaxRuntime(args.max_time), display=display)
     print(f"Result: {result}")
@@ -130,8 +142,8 @@ def eval_single(args):
     #print(f"Written cost results of PyVRP in file: {output_filename}")
 
     if args.plot_solution:
-        #figures_path = Path('/home/pettena/NLNSTW/temp/')
-        figures_path = Path('/home/pettepiero/tirocinio/NLNS_cvrptw/temp/')
+        figures_path = Path('/home/pettena/NLNSTW/temp/')
+        #figures_path = Path('/home/pettepiero/tirocinio/NLNS_cvrptw/temp/')
         _, ax = plt.subplots(figsize=(8, 8))
         plot_solution(result.best, data, path=figures_path, name="pyvrp_final_sol", plot_title='PyVRP final sol')
     
