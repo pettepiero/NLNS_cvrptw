@@ -10,7 +10,7 @@ class InstanceBlueprint:
     """Describes the properties of a certain instance type (e.g. number of customers)."""
 
     def __init__(self, nb_customers, depot_position, customer_position, nb_customer_cluster, demand_type, demand_min,
-                 demand_max, capacity, grid_size, service_time, late_coeff, max_time, test_tw=False, solomon_tw=False):
+                 demand_max, capacity, grid_size, service_time, late_coeff, max_time, test_tw=False, solomon_tw=False, overfit_inst=False):
         self.nb_customers           = nb_customers
         self.depot_position         = depot_position
         self.customer_position      = customer_position
@@ -26,6 +26,7 @@ class InstanceBlueprint:
         self.max_time               = max_time
         self.test_tw                = test_tw
         self.solomon_tw             = solomon_tw
+        self.overfit_inst           = overfit_inst
 
 
 def get_blueprint(blueprint_name):
@@ -95,6 +96,8 @@ def generate_Instance(blueprint, use_cost_memory, rng):
     return vrp_instance
 
 def get_time_window(blueprint, locations, rng):
+    if blueprint.overfit_inst:
+        rng = np.random.default_rng(0)
     max_time = blueprint.max_time 
     min_time = 0
     avg_gap = max_time/10
@@ -130,6 +133,9 @@ def get_time_window(blueprint, locations, rng):
     return np.array(tw, dtype=int)
 
 def get_depot_position(blueprint, rng):
+    if blueprint.overfit_inst:
+        rng = np.random.default_rng(0)
+
     if blueprint.depot_position == 'R':
         if blueprint.grid_size == 1:
             return rng.uniform(size=(1, 2))
@@ -170,6 +176,8 @@ def get_customer_position(blueprint, depot_pos, rng):
         margin = blueprint.max_time/ 10 #10% margin
         dist_to_depot = np.linalg.norm(pos - depot_pos, axis=1)
         return (2*dist_to_depot + blueprint.service_time) < blueprint.max_time - margin
+    if blueprint.overfit_inst:
+        rng = np.random.default_rng(0)
 
     valid_positions = np.empty((0, 2))
     while len(valid_positions) < blueprint.nb_customers:
@@ -193,6 +201,8 @@ def get_customer_position(blueprint, depot_pos, rng):
 
 
 def get_customer_demand(blueprint, customer_position, rng):
+    if blueprint.overfit_inst:
+        rng = np.random.default_rng(0)
     if blueprint.demand_type == 'inter':
         return rng.integers(blueprint.demand_min, blueprint.demand_max + 1, size=blueprint.nb_customers)
     elif blueprint.demand_type == 'U':

@@ -220,8 +220,8 @@ if args.seed is not None:
         "--mode",                   "eval_single",
         "--model_path",             full_model_path,
         "--instance_path",          path,
-        #"--lns_batch_size",         "1000",
-        "--lns_batch_size",         "10",
+        "--lns_batch_size",         "2000",
+        #"--lns_batch_size",         "10",
         "--lns_timelimit",          str(args.nlns_max_time_per_instance),
         "--device",                 str(args.device),
         "--output_path",            output_path,
@@ -240,8 +240,8 @@ else:
         "--mode",                   "eval_single",
         "--model_path",             full_model_path,
         "--instance_path",          path,
-        #"--lns_batch_size",         "1000",
-        "--lns_batch_size",         "10",
+        "--lns_batch_size",         "2000",
+        #"--lns_batch_size",         "10",
         "--lns_timelimit",          str(args.nlns_max_time_per_instance),
         "--device",                 str(args.device),
         "--output_path",            output_path,
@@ -303,7 +303,7 @@ if not found_pyvrp_file:
         path_cmd,           path,
         "--output_dir",     output_path,
         "--max_time",       str(args.pyvrp_max_time_per_instance),
-        "--plot_sol",       str(args.plot_sol),
+        "--plot_solution",       str(args.plot_sol),
         ]
     
     logging.debug(f"PyVRP command: {cmd_pyvrp}")

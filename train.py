@@ -83,7 +83,8 @@ def train_nlns(actor, critic, run_id, config):
     if config.wandb:
         # wandb logging
         wandb.init(
-            project="vrptw-nlns",
+            #project="vrptw-nlns",
+            project="final_models",
             id=str(run_id),
             tags=["training"],
             config=config,
