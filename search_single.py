@@ -1,3 +1,5 @@
+import os
+import csv
 from multiprocessing import Pool, Manager
 from vrp.data_utils import read_instance, vrp_to_plot_solution
 from copy import deepcopy
@@ -173,6 +175,8 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
         else:
             plot_solution(sol, data, name='initial_sol', path='/home/pettepiero/tirocinio/NLNS_cvrptw/temp/', plot_title=f'Initial sol, cost: {instance.get_costs(round=True)}', plot_clients=True)
 
+    dir_path = os.path.dirname(model_path)
+
     start_time = time.time()
     incumbent_costs = instance.get_costs(config.round_distances)
     #print(f"Initial cost: {incumbent_costs}")
@@ -190,6 +194,8 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
 
     #print(f"DEBUG: timelimit: {timelimit}")
     #print(f"DEBUG: distributin instance initial solution to {config.lns_nb_cpus} processes...")
+    objective_trace = []
+    objective_trace.append((0.0, float(incumbent_costs)))
     # Distribute starting solution to search processes
     for i in trange(config.lns_nb_cpus):
         queue_jobs.put([instance.solution, instance.schedule, incumbent_costs])
@@ -203,6 +209,8 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
         #print(f"DEBUG: got a result with {timelimit - (time.time() - start_time)} time left")
         if result != 0:
             #print(f"DEBUG: result cost: {result[2]}")
+            cost = result[2]
+            objective_trace.append((time.time() - start_time, float(cost)))
             if result[2] < incumbent_costs:
                 incumbent_costs = result[2]
                 instance.solution = result[0]
@@ -219,6 +227,21 @@ def lns_single_search_mp(instance_path, timelimit, config, model_path, pkl_insta
     duration = time.time() - start_time
     instance.verify_solution(config)
     instance._check_sol_sched_alignment()
+
+    trace_path = os.path.join(dir_path, f"objective_trace_{os.path.basename(instance_path).replace(os.sep, '_')}.csv")
+    print(f"Printed objective trace to: {trace_path}")
+    print(f"Printed objective trace to: {trace_path}")
+    with open(trace_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["time_sec", "incumbent_cost"])
+        w.writerows(objective_trace)
+    # save copy of objective trace to config.output_path
+    copy_of_trace_path = os.path.join(config.output_path, f"objective_trace_{os.path.basename(instance_path).replace(os.sep, '_')}.csv")
+    with open(copy_of_trace_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["time_sec", "incumbent_cost"])
+        w.writerows(objective_trace)
+    print(f"Printed objective trace to: {copy_of_trace_path}")
 
     if plot_sol: # plot final solution
         sol = vrp_to_plot_solution(instance)

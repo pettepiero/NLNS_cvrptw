@@ -333,6 +333,8 @@ nlns_dists = [
 pyvrp_costs = []
 if not found_pyvrp_file:
     pyvrp_filepath = os.path.join(output_path, "search", "pyvrp_eval.txt")
+    pyvrp_runtimes_file = os.path.join(output_path, "search", "pyvrp_runtimes.txt")
+
 with open(pyvrp_filepath, 'r') as f:
     pyvrp_costs = f.read().splitlines()
     assert len(pyvrp_costs) == len(nlns_dists)

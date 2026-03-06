@@ -9,7 +9,7 @@
 import argparse
 from pyvrp import Model, read, Result, solve
 from pyvrp.stop import MaxRuntime
-from pyvrp.plotting import plot_solution, plot_coordinates, plot_route_schedule
+from pyvrp.plotting import plot_solution, plot_coordinates, plot_route_schedule, plot_result
 import matplotlib.pyplot as plt
 import numpy as np
 from vrplib.read import read_instance
@@ -126,6 +126,11 @@ def eval_single(args):
         f.write(f"0,{cost}\n")
 
     print(f"Written cost results of PyVRP in file: {output_filename}")
+    result_plot_filename = os.path.join(args.output_dir, 'pyvrp_result.png')
+    fig = plt.figure(figsize=(15, 9))
+    plot_result(result, data, fig)
+    fig.savefig(result_plot_filename)
+    print(f"Save result fig to {result_plot_filename}")
 
 
 

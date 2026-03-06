@@ -179,7 +179,7 @@ def get_customer_position(blueprint, depot_pos, rng):
     if blueprint.overfit_inst:
         rng = np.random.default_rng(0)
 
-    valid_positions = np.empty((0, 2))
+    valid_positions = np.empty((0, 2), dtype=int)
     while len(valid_positions) < blueprint.nb_customers:
         needed = blueprint.nb_customers - len(valid_positions)
 
